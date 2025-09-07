@@ -15,6 +15,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import config from './config';
 
 const EventDetails = () => {
   const navigation = useNavigation();
@@ -35,7 +36,7 @@ const EventDetails = () => {
   const fetchEvent = async () => {
     try {
       const token = await AsyncStorage.getItem('authToken');
-      const response = await axios.get(`https://4cd65a47da20.ngrok-free.app/api/events/eventdetails/${eventId}`, {
+      const response = await axios.get(`${config.BASE_URL}/api/events/eventdetails/${eventId}`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -64,7 +65,7 @@ const EventDetails = () => {
           onPress: async () => {
             try {
               const token = await AsyncStorage.getItem('authToken');
-              await axios.delete(`https://4cd65a47da20.ngrok-free.app/api/events/delete/${eventId}`, {
+              await axios.delete(`${config.BASE_URL}/api/events/delete/${eventId}`, {
                 headers: {
                   Authorization: `Bearer ${token}`
                 }
@@ -97,7 +98,7 @@ const EventDetails = () => {
             try {
               const token = await AsyncStorage.getItem('authToken');
               const response = await axios.put(
-                `https://4cd65a47da20.ngrok-free.app/api/events/complete/${eventId}`,
+                `${config.BASE_URL}/api/events/complete/${eventId}`,
                 {},
                 {
                   headers: {

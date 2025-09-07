@@ -16,6 +16,7 @@ import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import config from './config';
 
 const EventsScreen = () => {
   const [events, setEvents] = useState([]);
@@ -46,7 +47,7 @@ const EventsScreen = () => {
 
       // API call to fetch events
       const response = await axios.get(
-        'https://4cd65a47da20.ngrok-free.app/api/getallevents', 
+        `${config.BASE_URL}/api/getallevents`, 
         {
           headers: {
             Authorization: `Bearer ${token}`,

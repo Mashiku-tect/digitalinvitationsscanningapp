@@ -18,6 +18,7 @@ import * as FileSystem from 'expo-file-system';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Make sure to import AsyncStorage
+import config from './config'; // Import config for API base URL
 
 const CreateEvent = () => {
   const navigation = useNavigation();
@@ -162,7 +163,7 @@ const CreateEvent = () => {
       console.log('Sending request with form data');
 
       const res = await axios.post(
-        "https://4cd65a47da20.ngrok-free.app/api/events",
+        `${config.BASE_URL}/api/events`,
         data,
         {
           headers: {

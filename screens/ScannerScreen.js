@@ -64,7 +64,7 @@ const sendScanDataToBackend = async (scannedData) => {
     }
 
     const response = await axios.post(
-      'https://4cd65a47da20.ngrok-free.app/api/events/validate-scan',
+      'https://b1cc150e78c4.ngrok-free.app/api/events/validate-scan',
       {
         guestId,
         eventId: scannedEventId,

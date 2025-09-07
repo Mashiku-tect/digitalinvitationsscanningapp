@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import config from './config';
 
 const LoginScreen = ({ navigation, onLogin }) => {
   const [email, setUsername] = useState('');
@@ -29,7 +30,7 @@ const LoginScreen = ({ navigation, onLogin }) => {
       setLoading(true);
 
       // 👇 Replace with your backend API
-      const response = await axios.post("https://4cd65a47da20.ngrok-free.app/api/login", {
+      const response = await axios.post(`${config.BASE_URL}/api/login`, {
         email,
         password
       });

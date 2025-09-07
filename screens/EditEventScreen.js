@@ -19,6 +19,7 @@ import axios from 'axios';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import config from './config';
 
 const EditEvent = () => {
   const navigation = useNavigation();
@@ -67,7 +68,7 @@ const EditEvent = () => {
       }
 
       const response = await axios.get(
-        `https://4cd65a47da20.ngrok-free.app/api/events/eventdetails/${id}`,
+        `${config.BASE_URL}/api/events/eventdetails/${id}`,
         {
           headers: {
             Authorization: `Bearer ${token}`
@@ -207,7 +208,7 @@ const EditEvent = () => {
       }
 
       const res = await axios.put(
-        `https://4cd65a47da20.ngrok-free.app/api/events/update/${id}`,
+        `${config.BASE_URL}/api/events/update/${id}`,
         data,
         {
           headers: {
