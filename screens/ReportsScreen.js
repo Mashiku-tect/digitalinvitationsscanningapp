@@ -1,555 +1,553 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  SafeAreaView,
-  StatusBar,
-  TouchableOpacity,
   ScrollView,
+  TouchableOpacity,
   ActivityIndicator,
+  RefreshControl,
   Alert,
+  Linking,
   Platform
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { Picker } from '@react-native-picker/picker';
-import * as Print from 'expo-print';
-import * as Sharing from 'expo-sharing';
+} from "react-native";
+import { useRoute } from "@react-navigation/native";
+import axios from "axios";
+import Icon from "react-native-vector-icons/MaterialIcons";
 import * as FileSystem from 'expo-file-system';
+import * as Sharing from 'expo-sharing';
+import config from './config';
 
-const ReportsScreen = () => {
-  const [selectedEvent, setSelectedEvent] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [generatingPDF, setGeneratingPDF] = useState(false);
-  const [events, setEvents] = useState([]);
-  const [reportData, setReportData] = useState(null);
+const EventReport = () => {
+  const [report, setReport] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const route = useRoute();
+  const { id } = route.params;
+  console.log("Fetching report for event ID:", id);
 
-  // Mock event data
-  useEffect(() => {
-    const mockEvents = [
-      { id: '1', name: 'Tech Conference 2024', date: '2024-06-15' },
-      { id: '2', name: 'Annual Gala Dinner', date: '2024-07-20' },
-      { id: '3', name: 'Product Launch Event', date: '2024-08-05' },
-      { id: '4', name: 'Company Retreat', date: '2024-09-12' },
-    ];
-    setEvents(mockEvents);
-  }, []);
-
-  // Mock report data
-  useEffect(() => {
-    if (selectedEvent) {
-      setLoading(true);
-      // Simulate API call delay
-      setTimeout(() => {
-        const mockReport = {
-          eventName: events.find(e => e.id === selectedEvent)?.name || 'Event',
-          totalGuests: 150,
-          attendedGuests: 120,
-          notAttendedGuests: 30,
-          totalRevenue: 12500,
-          totalCost: 8500,
-          netProfit: 4000,
-          guests: [
-            { id: 1, name: 'John Smith', status: 'Attended', ticketType: 'VIP' },
-            { id: 2, name: 'Emily Johnson', status: 'Attended', ticketType: 'Standard' },
-            { id: 3, name: 'Michael Brown', status: 'Not Attended', ticketType: 'Standard' },
-            { id: 4, name: 'Sarah Davis', status: 'Attended', ticketType: 'VIP' },
-            { id: 5, name: 'Robert Wilson', status: 'Not Attended', ticketType: 'Standard' },
-            { id: 6, name: 'Jennifer Miller', status: 'Attended', ticketType: 'Standard' },
-            { id: 7, name: 'William Taylor', status: 'Attended', ticketType: 'VIP' },
-            { id: 8, name: 'Linda Anderson', status: 'Attended', ticketType: 'Standard' },
-          ]
-        };
-        setReportData(mockReport);
-        setLoading(false);
-      }, 1000);
-    }
-  }, [selectedEvent]);
-
-  const generatePDF = async () => {
-    if (!reportData) return;
-    
-    setGeneratingPDF(true);
+  const fetchReport = async () => {
     try {
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>Event Report</title>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
-            .header { text-align: center; margin-bottom: 30px; }
-            .logo { font-size: 24px; font-weight: bold; color: #3B82F6; margin-bottom: 10px; }
-            .company-info { margin-bottom: 20px; font-size: 14px; color: #666; }
-            .event-title { font-size: 22px; font-weight: bold; margin-bottom: 20px; text-align: center; }
-            .summary { display: flex; justify-content: space-between; margin-bottom: 30px; }
-            .summary-box { border: 1px solid #ddd; padding: 15px; border-radius: 8px; width: 23%; text-align: center; }
-            .summary-title { font-size: 14px; color: #666; }
-            .summary-value { font-size: 18px; font-weight: bold; margin-top: 5px; }
-            .profit { color: #10B981; }
-            .loss { color: #EF4444; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 30px; }
-            th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-            th { background-color: #f5f5f5; }
-            .attended { color: #10B981; }
-            .not-attended { color: #EF4444; }
-            .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #999; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="logo">EVENTPRO</div>
-            <div class="company-info">
-              123 Business Avenue, Suite 456<br>
-              New York, NY 10001<br>
-              Phone: (555) 123-4567 | Email: info@eventpro.com
-            </div>
-          </div>
-          
-          <div class="event-title">Event Report: ${reportData.eventName}</div>
-          
-          <div class="summary">
-            <div class="summary-box">
-              <div class="summary-title">Total Guests</div>
-              <div class="summary-value">${reportData.totalGuests}</div>
-            </div>
-            <div class="summary-box">
-              <div class="summary-title">Attended</div>
-              <div class="summary-value">${reportData.attendedGuests}</div>
-            </div>
-            <div class="summary-box">
-              <div class="summary-title">Not Attended</div>
-              <div class="summary-value">${reportData.notAttendedGuests}</div>
-            </div>
-            <div class="summary-box">
-              <div class="summary-title">Net ${reportData.netProfit >= 0 ? 'Profit' : 'Loss'}</div>
-              <div class="summary-value ${reportData.netProfit >= 0 ? 'profit' : 'loss'}">
-                $${Math.abs(reportData.netProfit).toLocaleString()}
-              </div>
-            </div>
-          </div>
-          
-          <table>
-            <thead>
-              <tr>
-                <th>Guest Name</th>
-                <th>Status</th>
-                <th>Ticket Type</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${reportData.guests.map(guest => `
-                <tr>
-                  <td>${guest.name}</td>
-                  <td class="${guest.status === 'Attended' ? 'attended' : 'not-attended'}">${guest.status}</td>
-                  <td>${guest.ticketType}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-          
-          <div class="footer">
-            Report generated on ${new Date().toLocaleDateString()} | EventPro Management System
-          </div>
-        </body>
-        </html>
-      `;
-
-      const { uri } = await Print.printToFileAsync({ html: htmlContent });
-      
-      if (Platform.OS === 'ios') {
-        await Sharing.shareAsync(uri);
-      } else {
-        // On Android, use a file viewer
-        const permissions = await FileSystem.StorageAccessFramework.requestDirectoryPermissionsAsync();
-        
-        if (permissions.granted) {
-          const destinationUri = await FileSystem.StorageAccessFramework.createFileAsync(
-            permissions.directoryUri,
-            `EventReport_${reportData.eventName.replace(/\s+/g, '_')}_${new Date().getTime()}`,
-            'application/pdf'
-          );
-          
-          const base64 = await FileSystem.readAsStringAsync(uri, {
-            encoding: FileSystem.EncodingType.Base64,
-          });
-          
-          await FileSystem.StorageAccessFramework.writeAsStringAsync(
-            destinationUri,
-            base64,
-            { encoding: FileSystem.EncodingType.Base64 }
-          );
-          
-          Alert.alert('Success', 'PDF saved to your device');
-        }
-      }
-    } catch (error) {
-      console.error('Error generating PDF:', error);
-      Alert.alert('Error', 'Failed to generate PDF');
+      const res = await axios.get(`${config.BASE_URL}/api/events/reports/${id}`);
+      setReport(res.data);
+    } catch (err) {
+      console.error("Error fetching report:", err);
+      Alert.alert("Error", "Failed to fetch event report");
     } finally {
-      setGeneratingPDF(false);
+      setLoading(false);
+      setRefreshing(false);
     }
   };
 
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
+  useEffect(() => {
+    fetchReport();
+  }, [id]);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchReport();
+  };
+
+  const handleDownloadPDF = async () => {
+    try {
+      Alert.alert("Download", "Preparing your PDF report...");
       
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Event Reports</Text>
-        <Text style={styles.headerSubtitle}>Generate detailed event reports</Text>
+      // For web or if you need to handle PDF differently in mobile
+      if (Platform.OS === 'web') {
+        const res = await axios.get(
+          `${config.BASE_URL}/api/events/report/pdf/${id}`,
+          { responseType: "blob" }
+        );
+
+        const url = window.URL.createObjectURL(new Blob([res.data]));
+        const link = document.createElement("a");
+        link.href = url;
+        link.setAttribute("download", `event-report-${report.eventName}.pdf`);
+        document.body.appendChild(link);
+        link.click();
+      } else {
+        // For mobile - this would need proper implementation based on your backend
+        // This is a placeholder for mobile PDF handling
+        const pdfUrl = `${config.BASE_URL}/api/events/report/pdf/${id}`;
+        Linking.openURL(pdfUrl);
+      }
+    } catch (err) {
+      console.error("Error downloading PDF:", err);
+      Alert.alert("Error", "Failed to download PDF");
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#3B82F6" />
+        <Text style={styles.loadingText}>Loading report...</Text>
       </View>
+    );
+  }
 
-      {/* Event Selection */}
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Select Event</Text>
-        <View style={styles.pickerContainer}>
-          <Picker
-            selectedValue={selectedEvent}
-            onValueChange={(value) => setSelectedEvent(value)}
-            style={styles.picker}
-          >
-            <Picker.Item label="Choose an event..." value="" />
-            {events.map(event => (
-              <Picker.Item 
-                key={event.id} 
-                label={`${event.name} (${event.date})`} 
-                value={event.id} 
-              />
-            ))}
-          </Picker>
-        </View>
-      </View>
-
-      {loading ? (
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color="#3B82F6" />
-          <Text style={styles.loadingText}>Loading report data...</Text>
-        </View>
-      ) : reportData ? (
-        <ScrollView style={styles.reportContainer}>
-          {/* Report Header */}
-          <View style={styles.reportHeader}>
-            <Text style={styles.eventName}>{reportData.eventName}</Text>
-            <Text style={styles.reportDate}>
-              Report generated on {new Date().toLocaleDateString()}
-            </Text>
-          </View>
-
-          {/* Summary Cards */}
-          <View style={styles.summaryContainer}>
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>Total Guests</Text>
-                <Text style={styles.summaryValue}>{reportData.totalGuests}</Text>
-              </View>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>Attended</Text>
-                <Text style={[styles.summaryValue, styles.attendedText]}>
-                  {reportData.attendedGuests}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>Not Attended</Text>
-                <Text style={[styles.summaryValue, styles.notAttendedText]}>
-                  {reportData.notAttendedGuests}
-                </Text>
-              </View>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>Attendance Rate</Text>
-                <Text style={styles.summaryValue}>
-                  {((reportData.attendedGuests / reportData.totalGuests) * 100).toFixed(1)}%
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.summaryRow}>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>Total Revenue</Text>
-                <Text style={styles.summaryValue}>
-                  ${reportData.totalRevenue.toLocaleString()}
-                </Text>
-              </View>
-              <View style={styles.summaryCard}>
-                <Text style={styles.summaryTitle}>Total Cost</Text>
-                <Text style={styles.summaryValue}>
-                  ${reportData.totalCost.toLocaleString()}
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.summaryRow}>
-              <View style={[styles.summaryCard, styles.netCard]}>
-                <Text style={styles.summaryTitle}>Net Profit/Loss</Text>
-                <Text style={[
-                  styles.summaryValue,
-                  reportData.netProfit >= 0 ? styles.profitText : styles.lossText
-                ]}>
-                  {reportData.netProfit >= 0 ? '+' : '-'}${Math.abs(reportData.netProfit).toLocaleString()}
-                </Text>
-              </View>
-            </View>
-          </View>
-
-          {/* Guest List */}
-          <View style={styles.guestSection}>
-            <Text style={styles.sectionTitle}>Guest List</Text>
-            <View style={styles.guestList}>
-              {reportData.guests.map(guest => (
-                <View key={guest.id} style={styles.guestItem}>
-                  <View style={styles.guestInfo}>
-                    <Text style={styles.guestName}>{guest.name}</Text>
-                    <Text style={styles.guestType}>{guest.ticketType}</Text>
-                  </View>
-                  <View style={[
-                    styles.statusBadge,
-                    guest.status === 'Attended' ? styles.attendedBadge : styles.notAttendedBadge
-                  ]}>
-                    <Text style={styles.statusText}>{guest.status}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-          </View>
-
-          {/* Download Button */}
-          <TouchableOpacity 
-            style={[styles.downloadButton, generatingPDF && styles.disabledButton]}
-            onPress={generatePDF}
-            disabled={generatingPDF}
-          >
-            {generatingPDF ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="download" size={20} color="#fff" />
-                <Text style={styles.downloadButtonText}>Download PDF Report</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        </ScrollView>
-      ) : (
-        <View style={styles.placeholderContainer}>
-          <Ionicons name="stats-chart" size={64} color="#D1D5DB" />
-          <Text style={styles.placeholderText}>
-            Select an event to view its report
+  if (!report) {
+    return (
+      <View style={styles.container}>
+        <View style={styles.errorCard}>
+          <Icon name="sentiment-dissatisfied" size={64} color="#EF4444" />
+          <Text style={styles.errorTitle}>No Report Available</Text>
+          <Text style={styles.errorText}>
+            Sorry, we couldn't find a report for this event.
           </Text>
         </View>
-      )}
-    </SafeAreaView>
+      </View>
+    );
+  }
+
+  const StatCard = ({ title, value, iconName, color, borderColor }) => (
+    <View style={[styles.statCard, { borderLeftColor: borderColor }]}>
+      <View style={[styles.iconContainer, { backgroundColor: `${color}20` }]}>
+        <Icon name={iconName} size={24} color={color} />
+      </View>
+      <View>
+        <Text style={styles.statTitle}>{title}</Text>
+        <Text style={styles.statValue}>{value}</Text>
+      </View>
+    </View>
+  );
+
+  const GuestStatBox = ({ title, value, backgroundColor }) => (
+    <View style={[styles.guestStatBox, { backgroundColor }]}>
+      <Text style={styles.guestStatTitle}>{title}</Text>
+      <Text style={styles.guestStatValue}>{value}</Text>
+    </View>
+  );
+
+  return (
+    <ScrollView 
+      style={styles.container}
+      refreshControl={
+        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+      }
+    >
+      {/* Header */}
+      <View style={styles.headerCard}>
+        <View style={styles.headerTextContainer}>
+          <Text style={styles.title}>{report.eventName} – Event Report</Text>
+          <Text style={styles.subtitle}>Detailed analytics and insights for your event</Text>
+        </View>
+        <TouchableOpacity style={styles.downloadButton} onPress={handleDownloadPDF}>
+          <Icon name="download" size={20} color="#FFF" />
+          <Text style={styles.downloadButtonText}>Download PDF Report</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Stats Overview */}
+      <View style={styles.statsContainer}>
+        <StatCard
+          title="Total Invited"
+          value={report.totalInvited}
+          iconName="people"
+          color="#3B82F6"
+          borderColor="#3B82F6"
+        />
+        <StatCard
+          title="Checked In"
+          value={report.totalCheckedIn}
+          iconName="check-circle"
+          color="#10B981"
+          borderColor="#10B981"
+        />
+        <StatCard
+          title="Attendance Rate"
+          value={`${report.attendanceRate}%`}
+          iconName="bar-chart"
+          color="#8B5CF6"
+          borderColor="#8B5CF6"
+        />
+        <StatCard
+          title="Event Date"
+          value={report.date}
+          iconName="event"
+          color="#F59E0B"
+          borderColor="#F59E0B"
+        />
+      </View>
+
+      <View style={styles.contentContainer}>
+        {/* Guest Statistics */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Icon name="people-outline" size={20} color="#6366F1" />
+            <Text style={styles.cardTitle}>Guest Statistics</Text>
+          </View>
+          <View style={styles.guestStatsGrid}>
+            <GuestStatBox
+              title="Single Invitations"
+              value={report.singleInvites}
+              backgroundColor="#EFF6FF"
+            />
+            <GuestStatBox
+              title="Double Invitations"
+              value={report.doubleInvites}
+              backgroundColor="#ECFDF5"
+            />
+            <GuestStatBox
+              title="Single Checked-in"
+              value={report.singleCheckedIn}
+              backgroundColor="#F5F3FF"
+            />
+            <GuestStatBox
+              title="Double (Partial)"
+              value={report.doublePartial}
+              backgroundColor="#FEF3C7"
+            />
+            <GuestStatBox
+              title="Double (Full)"
+              value={report.doubleFull}
+              backgroundColor="#EEF2FF"
+            />
+          </View>
+        </View>
+
+        {/* Check-in Timeline */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Icon name="access-time" size={20} color="#6366F1" />
+            <Text style={styles.cardTitle}>Check-in Timeline</Text>
+          </View>
+          <View style={styles.timelineContainer}>
+            {report.timeline.map((slot, idx) => (
+              <View key={idx} style={styles.timelineRow}>
+                <Text style={styles.timelineTime}>{slot.time}</Text>
+                <Text style={styles.timelineCount}>{slot.count}</Text>
+              </View>
+            ))}
+          </View>
+        </View>
+
+        {/* Guest List Preview */}
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <Icon name="list" size={20} color="#6366F1" />
+            <Text style={styles.cardTitle}>Guest List Preview</Text>
+          </View>
+          <View style={styles.table}>
+            <View style={styles.tableHeader}>
+              <Text style={styles.headerCell}>Name</Text>
+              <Text style={styles.headerCell}>Type</Text>
+              <Text style={styles.headerCell}>RSVP</Text>
+              <Text style={styles.headerCell}>Status</Text>
+            </View>
+            {report.guestList.slice(0, 5).map((guest, idx) => (
+              <View key={idx} style={styles.tableRow}>
+                <Text style={styles.tableCell}>{guest.name}</Text>
+                <View style={styles.tableCell}>
+                  <View style={styles.typeBadge}>
+                    <Text style={styles.typeText}>{guest.type}</Text>
+                  </View>
+                </View>
+                <View style={styles.tableCell}>
+                  <View style={[
+                    styles.statusBadge, 
+                    guest.rsvp === 'Yes' ? styles.statusYes : styles.statusNo
+                  ]}>
+                    <Text style={[
+                      styles.statusText,
+                      guest.rsvp === 'Yes' ? styles.statusTextYes : styles.statusTextNo
+                    ]}>
+                      {guest.rsvp}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.tableCell}>
+                  <View style={[
+                    styles.statusBadge, 
+                    guest.status === 'Checked In' ? styles.statusCheckedIn : styles.statusPending
+                  ]}>
+                    <Text style={[
+                      styles.statusText,
+                      guest.status === 'Checked In' ? styles.statusTextCheckedIn : styles.statusTextPending
+                    ]}>
+                      {guest.status}
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            ))}
+          </View>
+          {report.guestList.length > 5 && (
+            <Text style={styles.footerText}>
+              Showing first 5 guests. Download the full report for complete list.
+            </Text>
+          )}
+        </View>
+      </View>
+    </ScrollView>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
-  },
-  header: {
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 4,
-  },
-  headerSubtitle: {
-    fontSize: 16,
-    color: '#6B7280',
-  },
-  section: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    marginBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 12,
-  },
-  pickerContainer: {
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: 8,
-    overflow: 'hidden',
-  },
-  picker: {
-    height: 50,
+    backgroundColor: "#F8FAFC",
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#F8FAFC",
   },
   loadingText: {
     marginTop: 16,
     fontSize: 16,
-    color: '#6B7280',
+    color: "#64748B",
   },
-  reportContainer: {
+  errorCard: {
     flex: 1,
-    padding: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "#FFF",
+    margin: 16,
+    borderRadius: 16,
+    padding: 32,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
-  reportHeader: {
-    backgroundColor: '#FFFFFF',
+  errorTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#1E293B",
+    marginTop: 16,
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#64748B",
+    textAlign: "center",
+    marginTop: 8,
+  },
+  headerCard: {
+    backgroundColor: "#FFF",
+    margin: 16,
+    borderRadius: 16,
     padding: 20,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  headerTextContainer: {
+    flex: 1,
+    marginRight: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#1E293B",
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#64748B",
+    marginTop: 4,
+  },
+  downloadButton: {
+    backgroundColor: "#4F46E5",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 16,
     borderRadius: 12,
+  },
+  downloadButtonText: {
+    color: "#FFF",
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  statsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
     marginBottom: 16,
-    alignItems: 'center',
-    shadowColor: '#000',
+  },
+  statCard: {
+    width: "48%",
+    backgroundColor: "#FFF",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    borderLeftWidth: 4,
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
     elevation: 2,
   },
-  eventName: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#1F2937',
-    marginBottom: 8,
+  iconContainer: {
+    borderRadius: 10,
+    padding: 8,
+    marginRight: 12,
   },
-  reportDate: {
-    fontSize: 14,
-    color: '#6B7280',
+  statTitle: {
+    fontSize: 12,
+    color: "#64748B",
   },
-  summaryContainer: {
-    marginBottom: 24,
+  statValue: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#1E293B",
+    marginTop: 4,
   },
-  summaryRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  contentContainer: {
+    paddingHorizontal: 16,
+    paddingBottom: 32,
+  },
+  card: {
+    backgroundColor: "#FFF",
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  cardTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1E293B",
+    marginLeft: 8,
+  },
+  guestStatsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+  },
+  guestStatBox: {
+    width: "48%",
+    borderRadius: 12,
+    padding: 12,
     marginBottom: 12,
   },
-  summaryCard: {
-    backgroundColor: '#FFFFFF',
-    padding: 16,
-    borderRadius: 12,
-    width: '48%',
-    alignItems: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  netCard: {
-    width: '100%',
-  },
-  summaryTitle: {
-    fontSize: 14,
-    color: '#6B7280',
-    marginBottom: 8,
-  },
-  summaryValue: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1F2937',
-  },
-  attendedText: {
-    color: '#10B981',
-  },
-  notAttendedText: {
-    color: '#EF4444',
-  },
-  profitText: {
-    color: '#10B981',
-  },
-  lossText: {
-    color: '#EF4444',
-  },
-  guestSection: {
-    backgroundColor: '#FFFFFF',
-    padding: 20,
-    borderRadius: 12,
-    marginBottom: 24,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  guestList: {
-    marginTop: 12,
-  },
-  guestItem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F3F4F6',
-  },
-  guestInfo: {
-    flex: 1,
-  },
-  guestName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: '#1F2937',
+  guestStatTitle: {
+    fontSize: 12,
+    color: "#64748B",
     marginBottom: 4,
   },
-  guestType: {
+  guestStatValue: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1E293B",
+  },
+  timelineContainer: {
+    marginTop: 8,
+  },
+  timelineRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  timelineTime: {
     fontSize: 14,
-    color: '#6B7280',
+    color: "#64748B",
+  },
+  timelineCount: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#1E293B",
+  },
+  table: {
+    marginTop: 8,
+  },
+  tableHeader: {
+    flexDirection: "row",
+    borderBottomWidth: 1,
+    borderBottomColor: "#E2E8F0",
+    paddingBottom: 12,
+    marginBottom: 8,
+  },
+  headerCell: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#64748B",
+  },
+  tableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#F1F5F9",
+  },
+  tableCell: {
+    flex: 1,
+  },
+  typeBadge: {
+    backgroundColor: "#EFF6FF",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: "flex-start",
+  },
+  typeText: {
+    fontSize: 12,
+    color: "#3B82F6",
+    textTransform: "capitalize",
   },
   statusBadge: {
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: "flex-start",
   },
-  attendedBadge: {
-    backgroundColor: '#ECFDF5',
+  statusYes: {
+    backgroundColor: "#ECFDF5",
   },
-  notAttendedBadge: {
-    backgroundColor: '#FEF2F2',
+  statusNo: {
+    backgroundColor: "#FEF2F2",
+  },
+  statusCheckedIn: {
+    backgroundColor: "#ECFDF5",
+  },
+  statusPending: {
+    backgroundColor: "#FEF3C7",
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "500",
   },
-  downloadButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#3B82F6',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 32,
-    gap: 8,
+  statusTextYes: {
+    color: "#059669",
   },
-  disabledButton: {
-    backgroundColor: '#9CA3AF',
+  statusTextNo: {
+    color: "#DC2626",
   },
-  downloadButtonText: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '600',
+  statusTextCheckedIn: {
+    color: "#059669",
   },
-  placeholderContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 40,
+  statusTextPending: {
+    color: "#D97706",
   },
-  placeholderText: {
-    fontSize: 18,
-    color: '#6B7280',
-    textAlign: 'center',
+  footerText: {
+    fontSize: 12,
+    color: "#64748B",
+    textAlign: "center",
     marginTop: 16,
   },
 });
 
-export default ReportsScreen;
+export default EventReport;

@@ -68,7 +68,7 @@ const ProfileScreen = ({ navigation, onLogout }) => {
         onPress: async () => {
           try {
             // Clear token
-            await AsyncStorage.removeItem('token');
+            await AsyncStorage.removeItem('authToken');
 
             // Reset navigation from root
             navigation.getParent()?.reset({

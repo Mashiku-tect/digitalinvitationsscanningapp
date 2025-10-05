@@ -3,6 +3,7 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ActivityIndicator, View } from 'react-native';
+import 'react-native-gesture-handler';
 import { checkLoginStatus } from './utils/auth';
 
 import LoginScreen from './screens/LoginScreen';

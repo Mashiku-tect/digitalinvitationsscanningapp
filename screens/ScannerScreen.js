@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Button, Alert, Linking, ActivityIndicator } fro
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import config from './config';
 
 const ScannerScreen = ({ route }) => {
   const [permission, requestPermission] = useCameraPermissions();
@@ -64,7 +65,7 @@ const sendScanDataToBackend = async (scannedData) => {
     }
 
     const response = await axios.post(
-      'https://b1cc150e78c4.ngrok-free.app/api/events/validate-scan',
+      `${config.BASE_URL}/api/events/validate-scan`,
       {
         guestId,
         eventId: scannedEventId,

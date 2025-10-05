@@ -17,15 +17,16 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage'; // Make sure to import AsyncStorage
-import config from './config'; // Import config for API base URL
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import config from './config';
 
 const CreateEvent = () => {
   const navigation = useNavigation();
   const [formData, setFormData] = useState({
     name: '',
     date: new Date(),
-    time: new Date(),
+    startTime: new Date(),
+    endTime: new Date(new Date().setHours(new Date().getHours() + 2)), // Default to 2 hours later
     location: '',
     description: '',
     category: 'personal',
@@ -33,7 +34,8 @@ const CreateEvent = () => {
     fileName: ''
   });
   const [showDatePicker, setShowDatePicker] = useState(false);
-  const [showTimePicker, setShowTimePicker] = useState(false);
+  const [showStartTimePicker, setShowStartTimePicker] = useState(false);
+  const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [uploadStatus, setUploadStatus] = useState('');
 
@@ -62,19 +64,59 @@ const CreateEvent = () => {
     }
   };
 
-  const handleTimeChange = (event, selectedTime) => {
-    setShowTimePicker(Platform.OS === 'ios');
+  const handleStartTimeChange = (event, selectedTime) => {
+    setShowStartTimePicker(Platform.OS === 'ios');
+    if (selectedTime) {
+      const newStartTime = selectedTime;
+      setFormData(prev => ({
+        ...prev,
+        startTime: newStartTime
+      }));
+
+      // Auto-adjust end time if it's before start time
+      const currentEndTime = prev.endTime;
+      if (currentEndTime < newStartTime) {
+        const newEndTime = new Date(newStartTime);
+        newEndTime.setHours(newStartTime.getHours() + 2); // Add 2 hours
+        setFormData(prev => ({
+          ...prev,
+          endTime: newEndTime
+        }));
+      }
+    }
+  };
+
+  const handleEndTimeChange = (event, selectedTime) => {
+    setShowEndTimePicker(Platform.OS === 'ios');
     if (selectedTime) {
       setFormData(prev => ({
         ...prev,
-        time: selectedTime
+        endTime: selectedTime
       }));
     }
   };
 
+  const validateTimes = () => {
+    const startTime = formData.startTime;
+    const endTime = formData.endTime;
+    
+    if (endTime <= startTime) {
+      Alert.alert('Invalid Time', 'End time must be after start time');
+      return false;
+    }
+    
+    // Check if event duration is reasonable (not more than 24 hours)
+    const duration = (endTime - startTime) / (1000 * 60 * 60); // duration in hours
+    if (duration > 24) {
+      Alert.alert('Long Duration', 'Event duration seems too long. Please check your times.');
+      return false;
+    }
+    
+    return true;
+  };
+
   const pickDocument = async () => {
     try {
-      // Use DocumentPicker.getDocumentAsync with proper options
       const result = await DocumentPicker.getDocumentAsync({
         type: [
           'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -83,7 +125,7 @@ const CreateEvent = () => {
           'application/csv',
           'text/comma-separated-values'
         ],
-        copyToCacheDirectory: true // Important for accessing the file
+        copyToCacheDirectory: true
       });
 
       console.log('Document picker result:', result);
@@ -96,7 +138,6 @@ const CreateEvent = () => {
       if (result.assets && result.assets.length > 0) {
         const file = result.assets[0];
         
-        // Check file extension
         const validExtensions = ['.xlsx', '.xls', '.csv'];
         const fileExtension = file.name ? file.name.substring(file.name.lastIndexOf('.')).toLowerCase() : '';
         
@@ -127,6 +168,11 @@ const CreateEvent = () => {
       return;
     }
 
+    // Validate times
+    if (!validateTimes()) {
+      return;
+    }
+
     // Validate Excel file upload
     if (!formData.excelFile) {
       Alert.alert('Error', 'Please upload an Excel file with guest data');
@@ -148,7 +194,8 @@ const CreateEvent = () => {
       const data = new FormData();
       data.append("name", formData.name);
       data.append("date", formData.date.toISOString().split('T')[0]);
-      data.append("time", formData.time.toTimeString().split(' ')[0]);
+      data.append("time", formData.startTime.toTimeString().split(' ')[0]);
+      data.append("endTime", formData.endTime.toTimeString().split(' ')[0]);
       data.append("location", formData.location);
       data.append("description", formData.description);
       data.append("category", formData.category);
@@ -185,13 +232,10 @@ const CreateEvent = () => {
       let errorMessage = "Error creating event";
       
       if (err.response) {
-        // Server responded with error status
         errorMessage = err.response.data?.message || `Server error: ${err.response.status}`;
       } else if (err.request) {
-        // Request was made but no response received
         errorMessage = "No response from server. Please check your connection.";
       } else {
-        // Something else happened
         errorMessage = err.message || "Unknown error occurred";
       }
       
@@ -207,6 +251,21 @@ const CreateEvent = () => {
 
   const formatTime = (date) => {
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  };
+
+  const getEventDuration = () => {
+    const start = formData.startTime;
+    const end = formData.endTime;
+    const duration = (end - start) / (1000 * 60 * 60); // hours
+    
+    if (duration < 1) {
+      const minutes = Math.round(duration * 60);
+      return `${minutes} minutes`;
+    } else if (duration === 1) {
+      return '1 hour';
+    } else {
+      return `${Math.round(duration * 10) / 10} hours`;
+    }
   };
 
   return (
@@ -245,44 +304,69 @@ const CreateEvent = () => {
           />
         </View>
 
-        {/* Date and Time */}
+        {/* Date */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Date *</Text>
+          <TouchableOpacity 
+            style={styles.input}
+            onPress={() => setShowDatePicker(true)}
+          >
+            <Text>{formatDate(formData.date)}</Text>
+          </TouchableOpacity>
+          {showDatePicker && (
+            <DateTimePicker
+              value={formData.date}
+              mode="date"
+              display="default"
+              onChange={handleDateChange}
+              minimumDate={new Date()}
+            />
+          )}
+        </View>
+
+        {/* Start and End Time */}
         <View style={styles.row}>
           <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
-            <Text style={styles.label}>Date *</Text>
+            <Text style={styles.label}>Start Time *</Text>
             <TouchableOpacity 
               style={styles.input}
-              onPress={() => setShowDatePicker(true)}
+              onPress={() => setShowStartTimePicker(true)}
             >
-              <Text>{formatDate(formData.date)}</Text>
+              <Text>{formatTime(formData.startTime)}</Text>
             </TouchableOpacity>
-            {showDatePicker && (
+            {showStartTimePicker && (
               <DateTimePicker
-                value={formData.date}
-                mode="date"
+                value={formData.startTime}
+                mode="time"
                 display="default"
-                onChange={handleDateChange}
-                minimumDate={new Date()}
+                onChange={handleStartTimeChange}
               />
             )}
           </View>
 
           <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
-            <Text style={styles.label}>Time *</Text>
+            <Text style={styles.label}>End Time *</Text>
             <TouchableOpacity 
               style={styles.input}
-              onPress={() => setShowTimePicker(true)}
+              onPress={() => setShowEndTimePicker(true)}
             >
-              <Text>{formatTime(formData.time)}</Text>
+              <Text>{formatTime(formData.endTime)}</Text>
             </TouchableOpacity>
-            {showTimePicker && (
+            {showEndTimePicker && (
               <DateTimePicker
-                value={formData.time}
+                value={formData.endTime}
                 mode="time"
                 display="default"
-                onChange={handleTimeChange}
+                onChange={handleEndTimeChange}
               />
             )}
           </View>
+        </View>
+
+        {/* Duration Display */}
+        <View style={styles.durationContainer}>
+          <Text style={styles.durationLabel}>Event Duration:</Text>
+          <Text style={styles.durationValue}>{getEventDuration()}</Text>
         </View>
 
         {/* Location */}
@@ -380,14 +464,11 @@ const CreateEvent = () => {
       <View style={styles.helpText}>
         <Text style={styles.helpTextLine}>All fields marked with * are required</Text>
         <Text style={styles.helpTextLine}>Your Excel file should include guest names, emails, and any other relevant information</Text>
+        <Text style={styles.helpTextLine}>End time must be after start time</Text>
       </View>
     </ScrollView>
   );
 };
-
-// ... (keep the same styles as before)
-
-
 
 const styles = StyleSheet.create({
   container: {
@@ -474,6 +555,25 @@ const styles = StyleSheet.create({
   },
   picker: {
     height: 50,
+  },
+  durationContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#F3F4F6',
+    padding: 12,
+    borderRadius: 8,
+    marginTop: 8,
+  },
+  durationLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  durationValue: {
+    fontSize: 14,
+    color: '#059669',
+    fontWeight: '600',
   },
   uploadButton: {
     backgroundColor: '#DBEAFE',

@@ -10,14 +10,20 @@ import EventsScreen from '../screens/EventsScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import UserManagementScreen from '../screens/UserManagementScreen';
 import ReportsScreen from '../screens/ReportsScreen';
-import InvitationsScreen from '../screens/InvitationsScreen';
+//import GenerateCards from '../screens/GenerateCards';
 import SettingsScreen from '../screens/SettingsScreen';
 import CreateEventScreen from '../screens/CreateEventsScreen';
 import EventDetailsScreen from '../screens/EventDetailsScreen';
 import EventLogsScreen from '../screens/EventLogsScreen'; 
 import DashboardScreen from '../screens/DashboardScreen';
-import InvitationsStatusScreen from '../screens/InvitationsStatusScreen';
+//import InvitationsStatusScreen from '../screens/GenerateCards';
 import EditEventScreen from '../screens/EditEventScreen';
+import InvitationsScreen from '../screens/InvitationsScreen';
+
+import AddUserScreen from '../screens/AddUserScreen';
+import EditUserScreen from '../screens/EditUserScreen';
+
+import ScanPermissionsScreen from '../screens/ScanPermissionScreen';
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
@@ -62,6 +68,22 @@ function HomeStack() {
       <Stack.Screen name="EventLogs" component={EventLogsScreen} />
       <Stack.Screen name="Scanner" component={ScannerScreen} />
       <Stack.Screen name="EditEvent" component={EditEventScreen} />
+      <Stack.Screen name="Reports" component={ReportsScreen} />
+      
+      <Stack.Screen name="ScanPermissions" component={ScanPermissionsScreen} />
+      {/* <Stack.Screen name="GenerateCards" component={GenerateCards} /> */}
+      {/* <Stack.Screen name="InvitationsStatus" component={InvitationsStatusScreen} /> */}
+    </Stack.Navigator>
+  );
+}
+
+//User Management Stack
+function UserManagementStack() {
+  return (
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
+      <Stack.Screen name="Users" component={UserManagementScreen} />
+      <Stack.Screen name="AddUser" component={AddUserScreen} />
+      <Stack.Screen name="EditUser" component={EditUserScreen} />
     </Stack.Navigator>
   );
 }
@@ -80,29 +102,17 @@ export default function AppNavigator() {
       {/* Boss/Admin only screens */}
       <Drawer.Screen 
         name="User Management" 
-        component={UserManagementScreen} 
+        component={UserManagementStack} 
         options={{ drawerIcon: ({color, size}) => <Ionicons name="people" size={size} color={color}/> }}
       />
-      <Drawer.Screen 
-        name="Reports" 
-        component={ReportsScreen} 
-        options={{ drawerIcon: ({color, size}) => <Ionicons name="bar-chart" size={size} color={color}/> }}
-      />
+      
       <Drawer.Screen 
         name="Send Invitations" 
         component={InvitationsScreen} 
         options={{ drawerIcon: ({color, size}) => <Ionicons name="send" size={size} color={color}/> }}
       />
-      <Drawer.Screen 
-        name="Invitations Status " 
-        component={InvitationsStatusScreen} 
-        options={{ drawerIcon: ({color, size}) => <Ionicons name="eye" size={size} color={color}/> }}
-      />
-      <Drawer.Screen 
-        name="Settings" 
-        component={SettingsScreen} 
-        options={{ drawerIcon: ({color, size}) => <Ionicons name="settings" size={size} color={color}/> }}
-      />
+     
+      
     </Drawer.Navigator>
   );
 }
