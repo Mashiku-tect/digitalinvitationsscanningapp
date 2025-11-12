@@ -11,13 +11,15 @@ import {
   ActivityIndicator,
   StatusBar,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  TouchableWithoutFeedback,
+  Keyboard
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import config from './config'; // Import config for API base URL
+import config from './config';
 
 const AddUserScreen = () => {
   const [formData, setFormData] = useState({
@@ -30,6 +32,7 @@ const AddUserScreen = () => {
   const [errors, setErrors] = useState({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [focusedField, setFocusedField] = useState(null);
   const navigation = useNavigation();
 
   const showToast = (message, type = 'success') => {
@@ -47,6 +50,18 @@ const AddUserScreen = () => {
     if (errors[field]) {
       setErrors({ ...errors, [field]: '' });
     }
+  };
+
+  const handleFocus = (field) => {
+    setFocusedField(field);
+  };
+
+  const handleBlur = () => {
+    setFocusedField(null);
+  };
+
+  const dismissKeyboard = () => {
+    Keyboard.dismiss();
   };
 
   const validateForm = () => {
@@ -81,6 +96,8 @@ const AddUserScreen = () => {
   };
 
   const handleSubmit = async () => {
+    dismissKeyboard(); // Dismiss keyboard when submitting
+    
     if (validateForm()) {
       setIsSubmitting(true);
 
@@ -130,157 +147,189 @@ const AddUserScreen = () => {
     }
   };
 
-  const InputField = ({ label, field, value, error, secureTextEntry, keyboardType = 'default' }) => (
+  const InputField = ({ label, field, value, error, secureTextEntry, keyboardType = 'default', autoCompleteType = 'off' }) => (
     <View style={styles.inputContainer}>
       <Text style={styles.label}>{label} *</Text>
       <TextInput
         style={[
           styles.input,
-          error ? styles.inputError : null
+          error ? styles.inputError : null,
+          focusedField === field ? styles.inputFocused : null
         ]}
         value={value}
         onChangeText={(text) => handleChange(field, text)}
+        onFocus={() => handleFocus(field)}
+        onBlur={handleBlur}
         placeholder={`Enter ${label.toLowerCase()}`}
+        placeholderTextColor="#9CA3AF"
         secureTextEntry={secureTextEntry && !showPassword}
         keyboardType={keyboardType}
         autoCapitalize={field === 'email' ? 'none' : 'words'}
+        autoCompleteType={autoCompleteType}
+        autoCorrect={false}
+        returnKeyType="next"
+        blurOnSubmit={false}
       />
-      {error && <Text style={styles.errorText}>{error}</Text>}
+      {error && (
+        <View style={styles.errorContainer}>
+          <Icon name="error-outline" size={16} color="#EF4444" />
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
+      )}
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" backgroundColor="#F0F9FF" />
-      <KeyboardAvoidingView 
-        style={styles.keyboardAvoid}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      >
-        <ScrollView 
-          style={styles.scrollView}
-          showsVerticalScrollIndicator={false}
+      <StatusBar barStyle="dark-content" backgroundColor="#F8FAFC" />
+     
+        <KeyboardAvoidingView 
+          style={styles.keyboardAvoid}
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
-          {/* Header */}
-          <View style={styles.header}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-            >
-              <Icon name="arrow-back" size={24} color="#1F2937" />
-            </TouchableOpacity>
-            <View style={styles.headerContent}>
-              <Text style={styles.headerTitle}>Create New User</Text>
-              <Text style={styles.headerSubtitle}>Add a new user to the system</Text>
-            </View>
-          </View>
-
-          {/* Form Card */}
-          <View style={styles.formCard}>
-            <View style={styles.cardHeader}>
-              <Text style={styles.cardTitle}>User Details</Text>
-              <Text style={styles.cardSubtitle}>Enter the basic information for the new user</Text>
-            </View>
-            
-            <View style={styles.form}>
-              <InputField
-                label="First Name"
-                field="firstName"
-                value={formData.firstName}
-                error={errors.firstName}
-              />
-              
-              <InputField
-                label="Last Name"
-                field="lastName"
-                value={formData.lastName}
-                error={errors.lastName}
-              />
-              
-              <InputField
-                label="Email Address"
-                field="email"
-                value={formData.email}
-                error={errors.email}
-                keyboardType="email-address"
-              />
-              
-              <InputField
-                label="Phone Number"
-                field="phone"
-                value={formData.phone}
-                error={errors.phone}
-                keyboardType="phone-pad"
-              />
-              
-              {/* Password Field with Toggle */}
-              <View style={styles.inputContainer}>
-                <Text style={styles.label}>Password *</Text>
-                <View style={styles.passwordContainer}>
-                  <TextInput
-                    style={[
-                      styles.input,
-                      styles.passwordInput,
-                      errors.password ? styles.inputError : null
-                    ]}
-                    value={formData.password}
-                    onChangeText={(text) => handleChange('password', text)}
-                    placeholder="Create a password"
-                    secureTextEntry={!showPassword}
-                  />
-                  <TouchableOpacity 
-                    style={styles.passwordToggle}
-                    onPress={() => setShowPassword(!showPassword)}
-                  >
-                    <Icon 
-                      name={showPassword ? "visibility" : "visibility-off"} 
-                      size={20} 
-                      color="#6B7280" 
-                    />
-                  </TouchableOpacity>
-                </View>
-                {errors.password && <Text style={styles.errorText}>{errors.password}</Text>}
-                <Text style={styles.passwordHint}>Must be at least 8 characters</Text>
+          <ScrollView 
+            style={styles.scrollView}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+            keyboardShouldPersistTaps="handled" // This fixes the keyboard dismiss issue
+          >
+            {/* Header */}
+            <View style={styles.header}>
+              {/* <TouchableOpacity 
+                style={styles.backButton}
+                onPress={() => navigation.goBack()}
+              >
+                <Icon name="arrow-back" size={24} color="#1F2937" />
+              </TouchableOpacity> */}
+              <View style={styles.headerContent}>
+                <Text style={styles.headerTitle}>Create New User</Text>
+                {/* <Text style={styles.headerSubtitle}>Add a new user to the system</Text> */}
               </View>
             </View>
 
-            {/* Action Buttons */}
-            <View style={styles.actionButtons}>
-              <TouchableOpacity 
-                style={styles.cancelButton}
-                onPress={() => navigation.goBack()}
-              >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
-              </TouchableOpacity>
+            {/* Form Card */}
+            <View style={styles.formCard}>
+              <View style={styles.cardHeader}>
+                <View style={styles.cardIcon}>
+                  <Icon name="person-add" size={24} color="#FFFFFF" />
+                </View>
+                <View>
+                  <Text style={styles.cardTitle}>User Details</Text>
+                  <Text style={styles.cardSubtitle}>Enter the basic information for the new user</Text>
+                </View>
+              </View>
               
-              <TouchableOpacity 
-                style={[
-                  styles.submitButton,
-                  isSubmitting ? styles.submitButtonDisabled : null
-                ]}
-                onPress={handleSubmit}
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <ActivityIndicator size="small" color="#FFFFFF" />
-                ) : (
-                  <Text style={styles.submitButtonText}>Create User</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
+              <View style={styles.form}>
+                <InputField
+                  label="First Name"
+                  field="firstName"
+                  value={formData.firstName}
+                  error={errors.firstName}
+                  autoCompleteType="name"
+                />
+                
+                <InputField
+                  label="Last Name"
+                  field="lastName"
+                  value={formData.lastName}
+                  error={errors.lastName}
+                  autoCompleteType="name"
+                />
+                
+                <InputField
+                  label="Email Address"
+                  field="email"
+                  value={formData.email}
+                  error={errors.email}
+                  keyboardType="email-address"
+                  autoCompleteType="email"
+                />
+                
+                <InputField
+                  label="Phone Number"
+                  field="phone"
+                  value={formData.phone}
+                  error={errors.phone}
+                  keyboardType="phone-pad"
+                  autoCompleteType="tel"
+                />
+                
+                {/* Password Field with Toggle */}
+                <View style={styles.inputContainer}>
+                  <Text style={styles.label}>Password *</Text>
+                  <View style={[
+                    styles.passwordContainer,
+                    errors.password ? styles.inputError : null,
+                    focusedField === 'password' ? styles.inputFocused : null
+                  ]}>
+                    <TextInput
+                      style={styles.passwordInput}
+                      value={formData.password}
+                      onChangeText={(text) => handleChange('password', text)}
+                      onFocus={() => handleFocus('password')}
+                      onBlur={handleBlur}
+                      placeholder="Create a password"
+                      placeholderTextColor="#9CA3AF"
+                      secureTextEntry={!showPassword}
+                      autoCompleteType="password"
+                      autoCorrect={false}
+                      returnKeyType="done"
+                    />
+                    <TouchableOpacity 
+                      style={styles.passwordToggle}
+                      onPress={() => setShowPassword(!showPassword)}
+                    >
+                      <Icon 
+                        name={showPassword ? "visibility" : "visibility-off"} 
+                        size={20} 
+                        color={focusedField === 'password' ? "#3B82F6" : "#6B7280"} 
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  {errors.password && (
+                    <View style={styles.errorContainer}>
+                      <Icon name="error-outline" size={16} color="#EF4444" />
+                      <Text style={styles.errorText}>{errors.password}</Text>
+                    </View>
+                  )}
+                  <Text style={styles.passwordHint}>Must be at least 8 characters</Text>
+                </View>
+              </View>
 
-          {/* Information Card */}
-          <View style={styles.infoCard}>
-            <View style={styles.infoHeader}>
-              <Icon name="info" size={20} color="#1D4ED8" />
-              <Text style={styles.infoTitle}>Information</Text>
+              {/* Action Buttons */}
+              <View style={styles.actionButtons}>
+                <TouchableOpacity 
+                  style={styles.cancelButton}
+                  onPress={() => navigation.goBack()}
+                >
+                  <Icon name="close" size={20} color="#6B7280" />
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                
+                <TouchableOpacity 
+                  style={[
+                    styles.submitButton,
+                    isSubmitting ? styles.submitButtonDisabled : null
+                  ]}
+                  onPress={handleSubmit}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Icon name="check" size={20} color="#FFFFFF" />
+                      <Text style={styles.submitButtonText}>Create User</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
-            <Text style={styles.infoText}>
-              All fields marked with * are required. The user will be able to change their password after first login.
-            </Text>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+
+            
+          </ScrollView>
+        </KeyboardAvoidingView>
+      
     </SafeAreaView>
   );
 };
@@ -288,7 +337,7 @@ const AddUserScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F0F9FF',
+    backgroundColor: '#F8FAFC',
   },
   keyboardAvoid: {
     flex: 1,
@@ -296,52 +345,71 @@ const styles = StyleSheet.create({
   scrollView: {
     flex: 1,
   },
+  scrollContent: {
+    flexGrow: 1,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
+    padding: 24,
     backgroundColor: '#FFFFFF',
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
+    borderBottomColor: '#F1F5F9',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   backButton: {
     padding: 8,
-    marginRight: 12,
+    marginRight: 16,
+    borderRadius: 8,
+    backgroundColor: '#F8FAFC',
   },
   headerContent: {
     flex: 1,
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: 'bold',
-    color: '#1F2937',
+    color: '#0F172A',
+    marginLeft:130
   },
   headerSubtitle: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 16,
+    color: '#64748B',
     marginTop: 4,
   },
   formCard: {
     backgroundColor: '#FFFFFF',
-    margin: 16,
-    borderRadius: 16,
+    margin: 20,
+    borderRadius: 20,
     overflow: 'hidden',
     shadowColor: '#000',
-    shadowOffset: {
-      width: 0,
-      height: 2,
-    },
+    shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowRadius: 12,
+    elevation: 8,
   },
   cardHeader: {
     backgroundColor: '#3B82F6',
-    padding: 20,
+    padding: 24,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cardIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 16,
   },
   cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
+    fontSize: 20,
+    fontWeight: 'bold',
     color: '#FFFFFF',
     marginBottom: 4,
   },
@@ -350,113 +418,146 @@ const styles = StyleSheet.create({
     color: '#BFDBFE',
   },
   form: {
-    padding: 20,
+    padding: 24,
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: 24,
   },
   label: {
-    fontSize: 14,
-    fontWeight: '500',
+    fontSize: 16,
+    fontWeight: '600',
     color: '#374151',
     marginBottom: 8,
   },
   input: {
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
     borderRadius: 12,
     padding: 16,
     fontSize: 16,
     backgroundColor: '#FFFFFF',
+    color: '#1F2937',
+  },
+  inputFocused: {
+    borderColor: '#3B82F6',
+    backgroundColor: '#F8FAFC',
   },
   inputError: {
     borderColor: '#EF4444',
   },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+    gap: 6,
+  },
   errorText: {
     color: '#EF4444',
-    fontSize: 12,
-    marginTop: 4,
+    fontSize: 14,
+    fontWeight: '500',
   },
   passwordContainer: {
-    position: 'relative',
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
+    backgroundColor: '#FFFFFF',
   },
   passwordInput: {
-    paddingRight: 50,
+    flex: 1,
+    padding: 16,
+    fontSize: 16,
+    color: '#1F2937',
   },
   passwordToggle: {
-    position: 'absolute',
-    right: 16,
-    top: 16,
-    padding: 4,
+    padding: 16,
   },
   passwordHint: {
-    fontSize: 12,
+    fontSize: 14,
     color: '#6B7280',
-    marginTop: 4,
+    marginTop: 8,
+    fontStyle: 'italic',
   },
   actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    padding: 20,
+    padding: 24,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
-    gap: 12,
+    borderTopColor: '#F1F5F9',
+    gap: 16,
   },
   cancelButton: {
     flex: 1,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#D1D5DB',
-    borderRadius: 12,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    padding: 16,
+    borderWidth: 2,
+    borderColor: '#E2E8F0',
+    borderRadius: 12,
     backgroundColor: '#FFFFFF',
+    gap: 8,
   },
   cancelButtonText: {
     fontSize: 16,
-    fontWeight: '500',
-    color: '#374151',
+    fontWeight: '600',
+    color: '#64748B',
   },
   submitButton: {
-    flex: 1,
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     padding: 16,
     backgroundColor: '#3B82F6',
     borderRadius: 12,
-    alignItems: 'center',
-    flexDirection: 'row',
-    justifyContent: 'center',
     gap: 8,
+    shadowColor: '#3B82F6',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
   },
   submitButtonDisabled: {
     opacity: 0.7,
   },
   submitButtonText: {
     fontSize: 16,
-    fontWeight: '500',
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   infoCard: {
-    backgroundColor: '#DBEAFE',
+    backgroundColor: '#F0F9FF',
     borderWidth: 1,
-    borderColor: '#BFDBFE',
-    borderRadius: 12,
-    padding: 16,
-    margin: 16,
+    borderColor: '#BAE6FD',
+    borderRadius: 16,
+    padding: 20,
+    margin: 20,
     marginTop: 0,
   },
   infoHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-    gap: 8,
+    marginBottom: 12,
+    gap: 12,
+  },
+  infoIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 6,
+    backgroundColor: '#0EA5E9',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   infoTitle: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: '600',
-    color: '#1E40AF',
+    color: '#0369A1',
   },
   infoText: {
     fontSize: 14,
-    color: '#374151',
+    color: '#475569',
     lineHeight: 20,
   },
 });

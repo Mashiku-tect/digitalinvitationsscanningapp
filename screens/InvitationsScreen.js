@@ -37,6 +37,7 @@ const SendInvitations = ({ navigation }) => {
           }
         });
         setEvents(response.data.events || []);
+        //console.log("events",response.data.events)
       } catch (error) {
         console.error('Error fetching events:', error);
         Alert.alert('Error', 'Failed to load events');
@@ -63,10 +64,10 @@ const SendInvitations = ({ navigation }) => {
       
       // Call the backend API to send invitations
       const response = await axios.post(
-        `${config.BASE_URL}/api/invitations/send`,
+        `${config.BASE_URL}/api/invitations/send/SMS`,
         {
           eventId: selectedEvent,
-          message: message
+          
         },
         {
           headers: {
@@ -115,13 +116,16 @@ const SendInvitations = ({ navigation }) => {
           style={styles.picker}
         >
           <Picker.Item label="-- Select an Event --" value="" />
-          {events.map(event => (
-            <Picker.Item 
-              key={event.id} 
-              value={event.id}
-              label={`${event.eventName} - ${new Date(event.eventDate).toLocaleDateString()}`}
-            />
-          ))}
+         {events
+  .filter(event => event.isInitialMessageSent === false)
+  .map(event => (
+    <Picker.Item 
+      key={event.id} 
+      value={event.id}
+      label={`${event.eventName} - ${new Date(event.eventDate).toLocaleDateString()}`}
+    />
+  ))}
+
         </Picker>
       </View>
     );
@@ -144,30 +148,9 @@ const SendInvitations = ({ navigation }) => {
           {renderEventPicker()}
         </View>
         
-        {/* Message Composition */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Invitation Message *</Text>
-          <TextInput
-            value={message}
-            onChangeText={setMessage}
-            multiline
-            numberOfLines={6}
-            style={styles.textArea}
-            placeholder="Write your invitation message here..."
-          />
-          <Text style={styles.helperText}>
-            Use {'{name}'} to personalize with guest names
-          </Text>
-        </View>
+        
 
-        {/* Message Preview Button */}
-        <TouchableOpacity 
-          style={styles.previewButton}
-          onPress={() => setPreviewModalVisible(true)}
-        >
-          <Icon name="visibility" size={18} color="#3B82F6" />
-          <Text style={styles.previewButtonText}>Preview Message</Text>
-        </TouchableOpacity>
+       
       </View>
 
       {/* Send Button */}
@@ -216,22 +199,6 @@ const SendInvitations = ({ navigation }) => {
         )}
       </View>
 
-      {/* Information Card */}
-      <View style={[styles.card, styles.infoCard]}>
-        <Text style={styles.infoTitle}>How it works</Text>
-        <View style={styles.infoItem}>
-          <Icon name="check-circle" size={18} color="#3B82F6" />
-          <Text style={styles.infoText}>Select an event to send invitations for</Text>
-        </View>
-        <View style={styles.infoItem}>
-          <Icon name="check-circle" size={18} color="#3B82F6" />
-          <Text style={styles.infoText}>Customize your invitation message</Text>
-        </View>
-        <View style={styles.infoItem}>
-          <Icon name="check-circle" size={18} color="#3B82F6" />
-          <Text style={styles.infoText}>Invitations will be sent to all guests of the selected event</Text>
-        </View>
-      </View>
 
       {/* Message Preview Modal */}
       <Modal

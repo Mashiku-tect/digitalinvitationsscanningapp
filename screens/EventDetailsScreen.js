@@ -11,13 +11,19 @@ import {
   StatusBar,
   FlatList,
   Modal,
-  TextInput
+  TextInput,
+  Dimensions,
+  ToastAndroid,
+  Platform
 } from 'react-native';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import config from './config';
+import Toast from 'react-native-toast-message';
+
+const { width: screenWidth } = Dimensions.get('window');
 
 const EventDetails = () => {
   const navigation = useNavigation();
@@ -28,6 +34,7 @@ const EventDetails = () => {
   const [loading, setLoading] = useState(true);
   const [guests, setGuests] = useState([]);
   const [updating, setUpdating] = useState(false);
+  const [updatingCallStatus, setUpdatingCallStatus] = useState(null); // Track which guest is being updated
   
   // New states for scan permissions management
   const [showPermissionModal, setShowPermissionModal] = useState(false);
@@ -53,13 +60,121 @@ const EventDetails = () => {
         }
       });
       setEvent(response.data.event);
-      setGuests(response.data.event.Guests || response.data.guests || []);
+      //console.log("Event Guests",response.data.guests)
+      setGuests( response.data.guests || []);
     } catch (error) {
-      console.error('Error fetching event:', error);
-      Alert.alert('Error', 'Failed to fetch event details');
+      const errormessage=error.response.data.message;
+
+      //console.error('Error fetching event:', error);
+      //Alert.alert('Error', 'Failed to fetch event details');
+      if(Platform.OS==='android'){
+               ToastAndroid.showWithGravity(
+        errormessage,
+          ToastAndroid.LONG,
+          ToastAndroid.CENTER
+        );
+      
+            }
+            else{
+              Toast.show(
+                {
+                  type:'error',
+                  text1:'Error',
+                  text2:errormessage
+                }
+              )
+            }
     } finally {
       setLoading(false);
     }
+  };
+
+  // Update call status for a guest
+  const updateCallStatus = async (guestId, status) => {
+    setUpdatingCallStatus(guestId);
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      await axios.put(
+        `${config.BASE_URL}/api/events/${eventId}/guests/${guestId}/status`,
+        { field:'callStatus',value: status },
+        {
+          headers: {
+            Authorization: `Bearer ${token}`
+          }
+        }
+      );
+
+      // Update local state
+      const updatedGuests = guests.map(guest => 
+        guest.id === guestId ? { ...guest, callStatus: status } : guest
+      );
+      setGuests(updatedGuests);
+
+      Alert.alert('Success', `Call status updated to ${status}`);
+    } catch (error) {
+      console.error('Error updating call status:', error);
+      Alert.alert('Error', 'Failed to update call status');
+    } finally {
+      setUpdatingCallStatus(null);
+    }
+  };
+
+  // Get package-specific columns
+  const getPackageColumns = () => {
+    const packageName = event?.packagename || 'Basic';
+    const baseColumns = [
+      { key: 'serial', label: 'S/N', width: 60 },
+      { key: 'firstName', label: 'First Name', width: 100 },
+      { key: 'lastName', label: 'Last Name', width: 100 },
+      { key: 'phone', label: 'Phone', width: 120 },
+      { key: 'type', label: 'Type', width: 80 },
+      
+    ];
+
+    switch (packageName.toLowerCase()) {
+      case 'basic':
+        return [
+          ...baseColumns,
+          { key: 'rsvpStatus', label: 'RSVP Status', width: 100 },
+          { key: 'smsSent', label: 'SMS Sent', width: 90 }
+        ];
+      
+      case 'standard':
+        return [
+          ...baseColumns,
+          { key: 'rsvpStatus', label: 'RSVP Status', width: 100 },
+          { key: 'smsSent', label: 'SMS Sent', width: 90 },
+          { key: 'callStatus', label: 'Call Status', width: 150 }
+        ];
+      
+      case 'pro':
+        return [
+          ...baseColumns,
+          { key: 'rsvpStatus', label: 'RSVP Status', width: 100 },
+          { key: 'smsSent', label: 'SMS Sent', width: 90 },
+          { key: 'callStatus', label: 'Call Status', width: 150 },
+          { key: 'reminderSent', label: 'Reminder Sent', width: 120 }
+        ];
+      
+      case 'elite':
+        return [
+          ...baseColumns,
+          { key: 'rsvpStatus', label: 'RSVP Status', width: 100 },
+          { key: 'smsSent', label: 'SMS Sent', width: 90 },
+          { key: 'callStatus', label: 'Call Status', width: 150 },
+          { key: 'reminder1Sent', label: 'Reminder1 Sent', width: 130 },
+          { key: 'reminder2Sent', label: 'Reminder2 Sent', width: 130 }
+        ];
+      
+      default:
+        return baseColumns;
+    }
+  };
+
+  // Calculate total table width
+  const getTableWidth = () => {
+    const columns = getPackageColumns();
+    return columns.reduce((total, column) => total + column.width, 0);
   };
 
   // Fetch scan permissions and tenants
@@ -335,6 +450,185 @@ const EventDetails = () => {
     return pageNumbers;
   };
 
+  // Render call status buttons
+  const renderCallStatusButtons = (guest) => {
+    const currentStatus = guest.callStatus || 'Not Called';
+    
+    if (updatingCallStatus === guest.id) {
+      return (
+        <View style={styles.callStatusLoading}>
+          <ActivityIndicator size="small" color="#3B82F6" />
+        </View>
+      );
+    }
+
+    if (currentStatus === 'Reachable') {
+      return (
+        <View style={styles.callStatusContainer}>
+          <TouchableOpacity 
+            style={[styles.callStatusButton, styles.reachableButtonActive]}
+            disabled={true}
+          >
+            <Text style={styles.callStatusButtonTextActive}>Reachable</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.callStatusButton, styles.notReachableButton]}
+            onPress={() => updateCallStatus(guest.id, 'Not Reachable')}
+          >
+            <Text style={styles.callStatusButtonText}>Not Reachable</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    if (currentStatus === 'Not Reachable') {
+      return (
+        <View style={styles.callStatusContainer}>
+          <TouchableOpacity 
+            style={[styles.callStatusButton, styles.reachableButton]}
+            onPress={() => updateCallStatus(guest.id, 'Reachable')}
+          >
+            <Text style={styles.callStatusButtonText}>Reachable</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.callStatusButton, styles.notReachableButtonActive]}
+            disabled={true}
+          >
+            <Text style={styles.callStatusButtonTextActive}>Not Reachable</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
+    // Default state - Not Called
+    return (
+      <View style={styles.callStatusContainer}>
+        <TouchableOpacity 
+          style={[styles.callStatusButton, styles.reachableButton]}
+          onPress={() => updateCallStatus(guest.id, 'Reachable')}
+        >
+          <Text style={styles.callStatusButtonText}>Reachable</Text>
+        </TouchableOpacity>
+        <TouchableOpacity 
+          style={[styles.callStatusButton, styles.notReachableButton]}
+          onPress={() => updateCallStatus(guest.id, 'Not Reachable')}
+        >
+          <Text style={styles.callStatusButtonText}>Not Reachable</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  };
+
+  // Render guest item with dynamic columns
+  const renderGuestItem = ({ item, index }) => {
+    const columns = getPackageColumns();
+    
+    return (
+      <View style={styles.guestRow}>
+        {columns.map((column) => (
+          <View key={column.key} style={[styles.guestCell, { width: column.width }]}>
+            {renderGuestCell(item, column.key, index)}
+          </View>
+        ))}
+      </View>
+    );
+  };
+
+  // Render individual guest cell based on column key
+  const renderGuestCell = (item, key, index) => {
+    switch (key) {
+      case 'serial':
+        return <Text style={styles.guestCellText}>{(currentPage - 1) * itemsPerPage + index + 1}</Text>;
+      
+      case 'firstName':
+        return <Text style={styles.guestCellText}>{item.firstName || 'N/A'}</Text>;
+      
+      case 'lastName':
+        return <Text style={styles.guestCellText}>{item.lastName || 'N/A'}</Text>;
+      
+      case 'phone':
+        return <Text style={styles.guestCellText}>{item.phone || 'N/A'}</Text>;
+      
+      case 'type':
+        return (
+          <Text style={styles.guestCellText}>
+            {item.type ? item.type.charAt(0).toUpperCase() + item.type.slice(1) : 'N/A'}
+          </Text>
+        );
+      
+      case 'status':
+        return (
+          <View style={[
+            styles.statusBadge,
+            item.status === 'Confirmed' ? styles.confirmedBadge : styles.pendingBadge
+          ]}>
+            <Text style={[
+              styles.statusText,
+              item.status === 'Confirmed' ? styles.confirmedText : styles.pendingText
+            ]}>
+              {item.status || 'Pending'}
+            </Text>
+          </View>
+        );
+      
+      case 'rsvpStatus':
+        return (
+          <Text style={styles.guestCellText}>
+            {item.rsvpStatus || 'Pending'}
+          </Text>
+        );
+      
+      case 'smsSent':
+        return (
+          <Text style={styles.guestCellText}>
+            {item.smsSent ? 'Yes' : 'No'}
+          </Text>
+        );
+      
+      case 'callStatus':
+        return renderCallStatusButtons(item);
+      
+      case 'reminderSent':
+        return (
+          <Text style={styles.guestCellText}>
+            {item.reminderSent ? 'Yes' : 'No'}
+          </Text>
+        );
+      
+      case 'reminder1Sent':
+        return (
+          <Text style={styles.guestCellText}>
+            {item.reminder1Sent ? 'Yes' : 'No'}
+          </Text>
+        );
+      
+      case 'reminder2Sent':
+        return (
+          <Text style={styles.guestCellText}>
+            {item.reminder2Sent ? 'Yes' : 'No'}
+          </Text>
+        );
+      
+      default:
+        return <Text style={styles.guestCellText}>N/A</Text>;
+    }
+  };
+
+  // Render table header with dynamic columns
+  const renderTableHeader = () => {
+    const columns = getPackageColumns();
+    
+    return (
+      <View style={styles.tableHeader}>
+        {columns.map((column) => (
+          <View key={column.key} style={[styles.headerCell, { width: column.width }]}>
+            <Text style={styles.headerCellText}>{column.label}</Text>
+          </View>
+        ))}
+      </View>
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -369,30 +663,9 @@ const EventDetails = () => {
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  const renderGuestItem = ({ item, index }) => (
-    <View style={styles.guestRow}>
-      <Text style={styles.guestCell}>{(currentPage - 1) * itemsPerPage + index + 1}</Text>
-      <Text style={styles.guestCell}>{item.firstName || 'N/A'}</Text>
-      <Text style={styles.guestCell}>{item.lastName || 'N/A'}</Text>
-      <Text style={styles.guestCell}>{item.phone || 'N/A'}</Text>
-      <Text style={styles.guestCell}>{item.type ? item.type.charAt(0).toUpperCase() + item.type.slice(1) : 'N/A'}</Text>
-      <View style={styles.guestCell}>
-        <View style={[
-          styles.statusBadge,
-          item.status === 'Confirmed' ? styles.confirmedBadge : styles.pendingBadge
-        ]}>
-          <Text style={[
-            styles.statusText,
-            item.status === 'Confirmed' ? styles.confirmedText : styles.pendingText
-          ]}>
-            {item.status || 'Pending'}
-          </Text>
-        </View>
-      </View>
-    </View>
-  );
-
   const pageNumbers = getPageNumbers();
+  const tableWidth = getTableWidth();
+  const needsHorizontalScroll = tableWidth > screenWidth - 32; // 32 is padding
 
   return (
     <SafeAreaView style={styles.container}>
@@ -500,6 +773,12 @@ const EventDetails = () => {
             </View>
           </View>
 
+          {/* Package Info */}
+          <View style={styles.packageInfo}>
+            <Text style={styles.packageLabel}>Package:</Text>
+            <Text style={styles.packageValue}>{event.packagename || 'Basic'}</Text>
+          </View>
+
           {/* Cancelled Event Notice */}
           {event.cancelled && (
             <View style={styles.cancelledNotice}>
@@ -559,24 +838,25 @@ const EventDetails = () => {
           </View>
 
           <View style={styles.guestsContainer}>
-            <Text style={styles.sectionTitle}>Guest List ({guests.length} guests)</Text>
+            <Text style={styles.sectionTitle}>Guest List ({event.totalGuests} guests)</Text>
             {guests.length > 0 ? (
               <>
                 <View style={styles.guestsTable}>
-                  <View style={styles.tableHeader}>
-                    <Text style={styles.headerCell}>S/N</Text>
-                    <Text style={styles.headerCell}>First Name</Text>
-                    <Text style={styles.headerCell}>Last Name</Text>
-                    <Text style={styles.headerCell}>Phone</Text>
-                    <Text style={styles.headerCell}>Type</Text>
-                    <Text style={styles.headerCell}>Status</Text>
-                  </View>
-                  <FlatList
-                    data={currentGuests}
-                    keyExtractor={(item, index) => index.toString()}
-                    renderItem={renderGuestItem}
-                    scrollEnabled={false}
-                  />
+                  <ScrollView 
+                    horizontal 
+                    showsHorizontalScrollIndicator={true}
+                    style={needsHorizontalScroll ? styles.horizontalScroll : null}
+                  >
+                    <View style={[styles.tableContainer, { width: tableWidth }]}>
+                      {renderTableHeader()}
+                      <FlatList
+                        data={currentGuests}
+                        keyExtractor={(item, index) => index.toString()}
+                        renderItem={renderGuestItem}
+                        scrollEnabled={false}
+                      />
+                    </View>
+                  </ScrollView>
                 </View>
                 
                 {/* Pagination Controls */}
@@ -813,8 +1093,27 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 10,
     flexWrap: 'wrap',
+  },
+  packageInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 15,
+    padding: 10,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
+  },
+  packageLabel: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#6B7280',
+    marginRight: 8,
+  },
+  packageValue: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#3B82F6',
   },
   eventTitle: {
     fontSize: 28,
@@ -947,14 +1246,23 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 16,
   },
+  horizontalScroll: {
+    minHeight: 200, // Ensure minimum height for better UX
+  },
+  tableContainer: {
+    flexDirection: 'column',
+  },
   tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#E5E7EB',
     paddingVertical: 12,
-    paddingHorizontal: 8,
   },
   headerCell: {
-    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  headerCellText: {
     fontSize: 12,
     fontWeight: '600',
     color: '#374151',
@@ -963,15 +1271,64 @@ const styles = StyleSheet.create({
   guestRow: {
     flexDirection: 'row',
     paddingVertical: 12,
-    paddingHorizontal: 8,
     borderBottomWidth: 1,
     borderBottomColor: '#E5E7EB',
   },
   guestCell: {
-    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  guestCellText: {
     fontSize: 12,
     color: '#4B5563',
     textAlign: 'center',
+  },
+  // Call Status Styles
+  callStatusContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 4,
+  },
+  callStatusButton: {
+    paddingHorizontal: 6,
+    paddingVertical: 4,
+    borderRadius: 4,
+    borderWidth: 1,
+    minWidth: 60,
+  },
+  reachableButton: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#10B981',
+  },
+  reachableButtonActive: {
+    backgroundColor: '#10B981',
+    borderColor: '#10B981',
+  },
+  notReachableButton: {
+    backgroundColor: '#FFFFFF',
+    borderColor: '#EF4444',
+  },
+  notReachableButtonActive: {
+    backgroundColor: '#EF4444',
+    borderColor: '#EF4444',
+  },
+  callStatusButtonText: {
+    fontSize: 10,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  callStatusButtonTextActive: {
+    color: '#FFFFFF',
+    fontSize: 10,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  callStatusLoading: {
+    padding: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   noGuestsBox: {
     backgroundColor: '#F9FAFB',

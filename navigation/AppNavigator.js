@@ -24,20 +24,21 @@ import AddUserScreen from '../screens/AddUserScreen';
 import EditUserScreen from '../screens/EditUserScreen';
 
 import ScanPermissionsScreen from '../screens/ScanPermissionScreen';
+import UserPermissions from '../screens/RolesAndPermissions';
 
 const Tab = createBottomTabNavigator();
 const Drawer = createDrawerNavigator();
 const Stack = createNativeStackNavigator();
 
 // Bottom Tabs (main daily actions)
-function BottomTabs() {
+function BottomTabs({ onLogout }) {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
         headerShown: false,
         tabBarIcon: ({ color, size }) => {
           let iconName;
-           if (route.name === 'Dashboard') iconName = 'home';
+          if (route.name === 'Dashboard') iconName = 'home';
           else if (route.name === 'Create Events') iconName = 'create';
           else if (route.name === 'Events') iconName = 'calendar';
           else if (route.name === 'Profile') iconName = 'person';
@@ -49,30 +50,29 @@ function BottomTabs() {
       <Tab.Screen name="Dashboard" component={DashboardScreen} />
       <Tab.Screen name="Create Events" component={CreateEventScreen} />
       <Tab.Screen name="Events" component={EventsScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
-      
+      <Tab.Screen name="Profile">
+        {(props) => <ProfileScreen {...props} onLogout={onLogout} />}
+      </Tab.Screen>
     </Tab.Navigator>
   );
 }
 
 // Home Stack (for screens pushed on top of tabs)
-function HomeStack() {
+function HomeStack({ onLogout }) {
   return (
     <Stack.Navigator screenOptions={{ headerShown:false }}>
       <Stack.Screen 
         name="HomeTabs" 
-        component={BottomTabs} 
-        options={{ headerShown: false }} 
-      />
+        options={{ headerShown: false }}
+      >
+        {(props) => <BottomTabs {...props} onLogout={onLogout} />}
+      </Stack.Screen>
       <Stack.Screen name="EventDetails" component={EventDetailsScreen} />
       <Stack.Screen name="EventLogs" component={EventLogsScreen} />
       <Stack.Screen name="Scanner" component={ScannerScreen} />
       <Stack.Screen name="EditEvent" component={EditEventScreen} />
       <Stack.Screen name="Reports" component={ReportsScreen} />
-      
       <Stack.Screen name="ScanPermissions" component={ScanPermissionsScreen} />
-      {/* <Stack.Screen name="GenerateCards" component={GenerateCards} /> */}
-      {/* <Stack.Screen name="InvitationsStatus" component={InvitationsStatusScreen} /> */}
     </Stack.Navigator>
   );
 }
@@ -84,22 +84,29 @@ function UserManagementStack() {
       <Stack.Screen name="Users" component={UserManagementScreen} />
       <Stack.Screen name="AddUser" component={AddUserScreen} />
       <Stack.Screen name="EditUser" component={EditUserScreen} />
+      
+<Stack.Screen 
+  name="UserPermissions" 
+  component={UserPermissions}
+  options={{ title: 'Manage Permissions' }}
+/>
     </Stack.Navigator>
   );
 }
 
+
 // Drawer Navigator (main app navigation)
-export default function AppNavigator() {
+export default function AppNavigator({ onLogout }) {
   return (
-    <Drawer.Navigator >
-      {/* Home drawer item → wraps tabs + stack */}
+    <Drawer.Navigator>
       <Drawer.Screen 
         name="Home" 
-        component={HomeStack}  // <-- Important: use HomeStack, not BottomTabs
         options={{ drawerIcon: ({color, size}) => <Ionicons name="home" size={size} color={color}/> }}
-      />
+      >
+        {(props) => <HomeStack {...props} onLogout={onLogout} />}
+      </Drawer.Screen>
 
-      {/* Boss/Admin only screens */}
+      {/* Other drawer screens */}
       <Drawer.Screen 
         name="User Management" 
         component={UserManagementStack} 
@@ -111,8 +118,6 @@ export default function AppNavigator() {
         component={InvitationsScreen} 
         options={{ drawerIcon: ({color, size}) => <Ionicons name="send" size={size} color={color}/> }}
       />
-     
-      
     </Drawer.Navigator>
   );
 }

@@ -11,13 +11,15 @@ import {
   ActivityIndicator,
   StatusBar,
   KeyboardAvoidingView,
-  Platform
+  Platform,
+  ToastAndroid
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import config from './config'; // Import config for API base URL
+import Toast from 'react-native-toast-message';
 
 const EditUserScreen = () => {
   const [formData, setFormData] = useState({
@@ -46,7 +48,8 @@ const EditUserScreen = () => {
       setLoading(true);
       const token = await AsyncStorage.getItem('authToken');
       if (!token) {
-        throw new Error('No authentication token found');
+        //throw new Error('No authentication token found');
+        return;
       }
 
       const response = await axios.get(`${config.BASE_URL}/api/users/${userId}`, {
@@ -67,8 +70,22 @@ const EditUserScreen = () => {
       setOriginalData(userData);
 
     } catch (error) {
-      console.error('Error fetching user data:', error);
-      Alert.alert('Error', 'Failed to load user data');
+      const errormessage=error.response.data.message;
+      if(Platform.OS==='android'){
+          ToastAndroid.showWithGravity(
+            errormessage,
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:errormessage
+        })
+      }
+      //console.error('Error fetching user data:', error);
+      //Alert.alert('Error', 'Failed to load user data');
     } finally {
       setLoading(false);
     }
@@ -146,8 +163,25 @@ const EditUserScreen = () => {
             }
           }
         );
+        if(Platform.OS==='android'){
+                 ToastAndroid.showWithGravity(
+            'User updated successfully!',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
         
-        Alert.alert('Success', response.data.message || 'User updated successfully!');
+              }
+              else{
+                Toast.show(
+                  {
+                    type:'success',
+                    text1:'Success',
+                    text2:'User updated successfully!'
+                  }
+                )
+              }
+        
+        //Alert.alert('Success', response.data.message || 'User updated successfully!');
         
         // Navigate back after success
         setTimeout(() => {
@@ -155,14 +189,31 @@ const EditUserScreen = () => {
         }, 1500);
         
       } catch (error) {
-        console.error('Error updating user:', error);
+       // console.error('Error updating user:', error);
         const errorMessage = error.response?.data?.message || "Failed to update user";
         
         if (errorMessage === "Invalid token") {
           await AsyncStorage.removeItem('token');
-          navigation.navigate('Login');
+         // navigation.navigate('Login');
         } else {
-          Alert.alert('Error', errorMessage);
+          //Alert.alert('Error', errorMessage);
+          if(Platform.OS==='android'){
+                   ToastAndroid.showWithGravity(
+              errorMessage,
+              ToastAndroid.LONG,
+              ToastAndroid.CENTER
+            );
+          
+                }
+                else{
+                  Toast.show(
+                    {
+                      type:'error',
+                      text1:'Error',
+                      text2:errorMessage
+                    }
+                  )
+                }
         }
       } finally {
         setIsSubmitting(false);
@@ -170,39 +221,7 @@ const EditUserScreen = () => {
     }
   };
 
-  const handleResetPassword = () => {
-    Alert.alert(
-      'Reset Password',
-      'Are you sure you want to reset this user\'s password? They will receive a temporary password via email.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Reset Password',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              const token = await AsyncStorage.getItem('authToken');
-              const response = await axios.post(
-                `${config.BASE_URL}/api/users/reset-password/${userId}`,
-                {},
-                {
-                  headers: {
-                    Authorization: `Bearer ${token}`
-                  }
-                }
-              );
-              
-              Alert.alert('Success', response.data.message || 'Password reset email sent successfully!');
-            } catch (error) {
-              console.error('Error resetting password:', error);
-              const errorMessage = error.response?.data?.message || "Failed to reset password";
-              Alert.alert('Error', errorMessage);
-            }
-          }
-        }
-      ]
-    );
-  };
+  
 
   const InputField = ({ label, field, value, error, keyboardType = 'default', editable = true }) => (
     <View style={styles.inputContainer}>
@@ -274,12 +293,7 @@ const EditUserScreen = () => {
         >
           {/* Header */}
           <View style={styles.header}>
-            <TouchableOpacity 
-              style={styles.backButton}
-              onPress={() => navigation.goBack()}
-            >
-              <Icon name="arrow-back" size={24} color="#1F2937" />
-            </TouchableOpacity>
+            
             <View style={styles.headerContent}>
               <Text style={styles.headerTitle}>Edit User</Text>
               <Text style={styles.headerSubtitle}>
@@ -292,7 +306,7 @@ const EditUserScreen = () => {
           <View style={styles.formCard}>
             <View style={styles.cardHeader}>
               <Text style={styles.cardTitle}>User Details</Text>
-              <Text style={styles.cardSubtitle}>Update the user's information</Text>
+              {/* <Text style={styles.cardSubtitle}>Update the user's information</Text> */}
             </View>
             
             <View style={styles.form}>
@@ -376,57 +390,9 @@ const EditUserScreen = () => {
             </View>
           </View>
 
-          {/* Danger Zone */}
-          <View style={styles.dangerZone}>
-            <View style={styles.dangerHeader}>
-              <Icon name="warning" size={20} color="#DC2626" />
-              <Text style={styles.dangerTitle}>Danger Zone</Text>
-            </View>
-            
-            <View style={styles.dangerActions}>
-              <TouchableOpacity 
-                style={styles.resetPasswordButton}
-                onPress={handleResetPassword}
-              >
-                <Icon name="vpn-key" size={20} color="#DC2626" />
-                <Text style={styles.resetPasswordText}>Reset Password</Text>
-              </TouchableOpacity>
-              
-              <Text style={styles.dangerDescription}>
-                Reset this user's password. They will receive a temporary password via email.
-              </Text>
-            </View>
-          </View>
+         
 
-          {/* User Information */}
-          <View style={styles.infoCard}>
-            <View style={styles.infoHeader}>
-              <Icon name="info" size={20} color="#1D4ED8" />
-              <Text style={styles.infoTitle}>User Information</Text>
-            </View>
-            <View style={styles.infoGrid}>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>User ID</Text>
-                <Text style={styles.infoValue}>{userId}</Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Created</Text>
-                <Text style={styles.infoValue}>
-                  {originalData.createdAt ? 
-                    new Date(originalData.createdAt).toLocaleDateString() : 'N/A'
-                  }
-                </Text>
-              </View>
-              <View style={styles.infoItem}>
-                <Text style={styles.infoLabel}>Last Updated</Text>
-                <Text style={styles.infoValue}>
-                  {originalData.updatedAt ? 
-                    new Date(originalData.updatedAt).toLocaleDateString() : 'N/A'
-                  }
-                </Text>
-              </View>
-            </View>
-          </View>
+          
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

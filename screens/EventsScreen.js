@@ -151,7 +151,7 @@ const EventsScreen = () => {
           <View style={styles.detailItem}>
             <Ionicons name="people" size={14} color="#666" />
             <Text style={styles.detailText}>
-              {item.attendees ? `${item.attendees} attendees` : 'No attendees info'}
+              {item.totalGuests ? `${item.totalGuests} attendees` : 'No attendees info'}
             </Text>
           </View>
           <View style={styles.detailItem}>

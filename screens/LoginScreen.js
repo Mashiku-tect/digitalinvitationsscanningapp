@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import Toast from 'react-native-toast-message';
 import { 
   View, 
   Text, 
@@ -8,7 +9,9 @@ import {
   KeyboardAvoidingView, 
   Platform,
   Alert,
-  ActivityIndicator
+  ActivityIndicator,
+  
+  ToastAndroid
 } from 'react-native';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -22,14 +25,31 @@ const LoginScreen = ({ navigation, onLogin }) => {
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter username and password');
+      //Alert.alert('Error', 'Please enter username and password');
+      if(Platform.OS==='android'){
+         ToastAndroid.showWithGravity(
+    'Please enter username and password',
+    ToastAndroid.LONG,
+    ToastAndroid.CENTER
+  );
+
+      }
+      else{
+        Toast.show(
+          {
+            type:'error',
+            text1:'Error',
+            text2:'Please Enter username and password'
+          }
+        )
+      }
       return;
     }
 
     try {
       setLoading(true);
 
-      // 👇 Replace with your backend API
+   
       const response = await axios.post(`${config.BASE_URL}/api/login`, {
         email,
         password
@@ -37,8 +57,7 @@ const LoginScreen = ({ navigation, onLogin }) => {
 
       if (response.data.message === "Login successful") {
         const token = response.data.token;
-        // ✅ Handle successful login
-        console.log('Login successful, token:', token);
+        
 
 
         // 🔒 Save token securely
@@ -46,23 +65,49 @@ const LoginScreen = ({ navigation, onLogin }) => {
 
         // Call parent to update auth state
         onLogin(token);
+        const message=response.data.message;
 
         // Navigate to main app
         //navigation.replace("MainApp");
+        if(Platform.OS==='android'){
+          ToastAndroid.showWithGravity(
+    message,
+    ToastAndroid.LONG,
+    ToastAndroid.CENTER
+  );
+        }
+        else{
+          Toast.show({
+  type: 'success',
+  text1: message
+});
+        }
         navigation.reset({
   index: 0,
   routes: [
-    { name: 'HomeTabs', params: { screen: 'Dashboard' } }
+    { name: 'MainApp' } // This will show the AppNavigator with Drawer
   ],
 });
 
-      } else {
-        Alert.alert('Login Failed', response.data.message || 'Invalid credentials');
-      }
+      } 
 
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Something went wrong. Please try again.');
+      //console.error(error);
+      //Alert.alert('Error', 'Something went wrong. Please try again.');
+      const errorMessage=error.response.data.message;
+      if(Platform.OS==='android'){
+              ToastAndroid.showWithGravity(
+    errorMessage,
+    ToastAndroid.LONG,
+    ToastAndroid.CENTER
+  );
+      }
+      else{
+               Toast.show({
+  type: 'error',
+  text1: errorMessage
+});
+      }
     } finally {
       setLoading(false);
     }

@@ -9,16 +9,20 @@ import {
   ActivityIndicator,
   FlatList,
   StatusBar,
-  Dimensions
+  Dimensions,
+  Platform,
+  ToastAndroid
 } from 'react-native';
+
 import axios from 'axios';
 import { useFocusEffect } from '@react-navigation/native';
 import config from './config'; // Import config for API base URL
+import Toast from 'react-native-toast-message';
 import AsyncStorage from '@react-native-async-storage/async-storage'; // Make sure to import AsyncStorage
 
 const { width } = Dimensions.get('window');
 
-const Dashboard = () => {
+const Dashboard = ({navigation,onLogout}) => {
   const [stats, setStats] = useState({
     totalEvents: 0,
     activeEvents: 0,
@@ -51,6 +55,9 @@ const Dashboard = () => {
           Authorization: `Bearer ${token}`
         }
       });
+      // if(statsResponse.data.message==='Invalid token'){
+      //     onLogout();
+      // }
 
       if (statsResponse.data.success) {
         setStats(statsResponse.data);
@@ -68,7 +75,22 @@ const Dashboard = () => {
       }
 
     } catch (err) {
-      console.error('Error fetching dashboard data:', err);
+     // console.error('Error fetching dashboard data:', err);
+     const errormessage=err.response.data.message;
+     if(Platform.OS==='android'){
+       ToastAndroid.showWithGravity(
+          errormessage,
+          ToastAndroid.LONG,
+          ToastAndroid.CENTER
+        );
+     }
+     else{
+      Toast.show({
+        type:'error',
+        text1:'Error',
+        text2:errormessage
+      })
+     }
       setError(err.response?.data?.message || 'Failed to load dashboard data');
     }
   };
@@ -126,7 +148,7 @@ const Dashboard = () => {
   const formatCurrency = (amount) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
-      currency: 'USD'
+      currency: 'TZS'
     }).format(amount);
   };
 
@@ -192,11 +214,11 @@ const Dashboard = () => {
           <Text style={styles.headerSubtitle}>Overview of your digital invitation events</Text>
         </View>
 
-        {error && (
+        {/* {error && (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
           </View>
-        )}
+        )} */}
 
         {/* Stats Grid */}
         <View style={styles.statsGrid}>

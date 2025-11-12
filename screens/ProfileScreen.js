@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState,useEffect } from 'react';
+import axios from 'axios';
 
 import {
   View,
@@ -10,18 +11,20 @@ import {
   ScrollView,
   Alert,
   Image,
-  Switch
+  Switch,
+   ActivityIndicator,
+   Platform,
+   ToastAndroid
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { CommonActions } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import config from './config';
+import Toast from 'react-native-toast-message';
 
 const ProfileScreen = ({ navigation, onLogout }) => {
-  const [userData, setUserData] = useState({
-    name: 'John Doe',
-    email: 'john.doe@example.com',
-    role: 'Event Manager'
-  });
+  const [userData, setUserData] = useState({ });
+ const [updating,setUpdating]=useState(false);
 
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
@@ -29,28 +32,174 @@ const ProfileScreen = ({ navigation, onLogout }) => {
     confirmPassword: ''
   });
 
-  const [notifications, setNotifications] = useState(true);
-  const [darkMode, setDarkMode] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
+ 
 
-  const handlePasswordChange = () => {
+useEffect(() => {
+  const fetchUserDetails = async () => {
+    try {
+      const token = await AsyncStorage.getItem('authToken');
+      if (!token) return;
+
+      const response = await axios.get(`${config.BASE_URL}/api/user/userdetails`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      //console.log(response.data.user)
+
+      setUserData(response.data.user);
+    } catch (error) {
+      const errormessage=error.response.data.message;
+      if(Platform.OS==='android'){
+         ToastAndroid.showWithGravity(
+            errormessage,
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Errro',
+          text2:errormessage
+        })
+      }
+      //console.error("Error fetching user details:", error);
+    }
+  };
+
+  // ✅ Call it here (not inside itself)
+  fetchUserDetails();
+}, []);
+
+
+  const handlePasswordChange = async () => {
+   if (
+  !passwordData?.newPassword?.trim() ||
+  !passwordData?.confirmPassword?.trim() ||
+  !passwordData?.currentPassword?.trim()
+) {
+  if(Platform.OS==='android'){
+         ToastAndroid.showWithGravity(
+            'Fill All Input Fields',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:'Fill All Input Fields'
+        })
+      }
+
+      return;
+}
+
     if (passwordData.newPassword !== passwordData.confirmPassword) {
-      Alert.alert('Error', 'New passwords do not match');
+      //Alert.alert('Error', 'New passwords do not match');
+      if(Platform.OS==='android'){
+         ToastAndroid.showWithGravity(
+            'New passwords do not match',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:'New passwords do not match'
+        })
+      }
       return;
     }
 
-    if (passwordData.newPassword.length < 6) {
-      Alert.alert('Error', 'Password must be at least 6 characters long');
+    if (passwordData.newPassword.trim().length < 8) {
+      //Alert.alert('Error', 'Password must be at least 8 characters long');
+       if(Platform.OS==='android'){
+         ToastAndroid.showWithGravity(
+            'New password must be at least 8 characters long',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:'New password must be at least 8 characters long'
+        })
+      }
       return;
     }
+
+    const payload={
+      currentpassword:passwordData.currentPassword,
+      newpassword:passwordData.newPassword
+    }
+    const token=await AsyncStorage.getItem('authToken');
+    if(!token) return;
+
+
+    try{
+      setUpdating(true);
+  const response=await axios.post(`${config.BASE_URL}/api/user/newpassword`,
+      payload
+    ,{
+      headers:{
+        Authorization:`Bearer ${token}`
+      }
+    })
 
     // Here you would typically make an API call to change the password
-    Alert.alert('Success', 'Password changed successfully');
+   // Alert.alert('Success', 'Password changed successfully');
+   if(Platform.OS==='android'){
+         ToastAndroid.showWithGravity(
+            'Password changed successfully',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'success',
+          text1:'Success',
+          text2:'Password changed successfully'
+        })
+      }
     setPasswordData({
       currentPassword: '',
       newPassword: '',
       confirmPassword: ''
     });
+    }
+    catch(error){
+      const errormessage=error.response.data.message;
+      if(Platform.OS==='android'){
+         ToastAndroid.showWithGravity(
+            errormessage,
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'success',
+          text1:'Success',
+          text2:errormessage
+        })
+      }
+      
+      //console.log(errormessage)
+      //Alert.alert(errormessage)
+    }
+    finally{
+      setUpdating(false)
+    }
+  
   };
 
  const handleLogout = () => {
@@ -71,12 +220,22 @@ const ProfileScreen = ({ navigation, onLogout }) => {
             await AsyncStorage.removeItem('authToken');
 
             // Reset navigation from root
-            navigation.getParent()?.reset({
-              index: 0,
-              routes: [{ name: 'Login' }],
-            });
+  //     navigation
+  // .getParent()      // BottomTabs
+  // .getParent()      // HomeStack
+  // .getParent()      // Drawer
+  // .getParent()      // Root Stack
+  // ?.reset({
+  //   index: 0,
+  //   routes: [{ name: 'Login' }],
+  // });
+   if (onLogout) {
+              onLogout();
+            }
+
+
           } catch (error) {
-            console.log('Error clearing token:', error);
+            //console.log('Error clearing token:', error);
           }
         }
       }
@@ -96,51 +255,22 @@ const ProfileScreen = ({ navigation, onLogout }) => {
         <View style={styles.profileCard}>
           <View style={styles.avatarContainer}>
             <Image
-              source={{ uri: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=2070&q=80' }}
+              source={require('../assets/user.png')}
               style={styles.avatar}
             />
-            <TouchableOpacity style={styles.editButton}>
+            {/* <TouchableOpacity style={styles.editButton}>
               <Ionicons name="camera" size={16} color="#fff" />
-            </TouchableOpacity>
+            </TouchableOpacity> */}
           </View>
 
-          <Text style={styles.userName}>{userData.name}</Text>
+          <Text style={styles.userName}>{userData.firstName} {userData.lastName} </Text>
           <Text style={styles.userEmail}>{userData.email}</Text>
           <View style={styles.roleBadge}>
             <Text style={styles.roleText}>{userData.role}</Text>
           </View>
         </View>
 
-        {/* Settings Section */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Preferences</Text>
-          
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="notifications" size={20} color="#4e6bff" />
-              <Text style={styles.settingText}>Notifications</Text>
-            </View>
-            <Switch
-              value={notifications}
-              onValueChange={setNotifications}
-              trackColor={{ false: '#f0f0f0', true: '#d0d8ff' }}
-              thumbColor={notifications ? '#4e6bff' : '#f4f3f4'}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <Ionicons name="moon" size={20} color="#4e6bff" />
-              <Text style={styles.settingText}>Dark Mode</Text>
-            </View>
-            <Switch
-              value={darkMode}
-              onValueChange={setDarkMode}
-              trackColor={{ false: '#f0f0f0', true: '#d0d8ff' }}
-              thumbColor={darkMode ? '#4e6bff' : '#f4f3f4'}
-            />
-          </View>
-        </View>
+        
 
         {/* Change Password Section */}
         <View style={styles.section}>
@@ -183,11 +313,22 @@ const ProfileScreen = ({ navigation, onLogout }) => {
           </View>
 
           <TouchableOpacity 
-            style={styles.changePasswordButton}
-            onPress={handlePasswordChange}
-          >
-            <Text style={styles.changePasswordText}>Update Password</Text>
-          </TouchableOpacity>
+  style={styles.changePasswordButton}
+  onPress={handlePasswordChange}
+  disabled={updating} // ✅ disable while updating
+>
+  {updating ? (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <ActivityIndicator size="small" color="#fff" />
+      <Text style={[styles.changePasswordText, { marginLeft: 8 }]}>
+        Updating...
+      </Text>
+    </View>
+  ) : (
+    <Text style={styles.changePasswordText}>Update Password</Text>
+  )}
+</TouchableOpacity>
+
         </View>
 
         {/* Logout Button */}

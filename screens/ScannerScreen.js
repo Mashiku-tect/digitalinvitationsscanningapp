@@ -1,24 +1,85 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Button, Alert, Linking, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Button, Alert, Linking, ActivityIndicator,Platform,ToastAndroid } from 'react-native';
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import config from './config';
+import Toast from 'react-native-toast-message';
 
-const ScannerScreen = ({ route }) => {
+const ScannerScreen = ({ route,navigation }) => {
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [eventId, setEventId] = useState(null);
-
+    const [loading, setLoading] = useState(true); // 👈 show loading before authorization
+  const [authorized, setAuthorized] = useState(false);
+  const [eventname,setEventName]=useState(null);
   // Get event ID from navigation params if available
   useEffect(() => {
     if (route.params?.eventId) {
       setEventId(route.params.eventId);
-      //try to log event Id
-     // console.log('Scanning for Event ID:', route.params.eventId);
     }
-  }, [route.params]);
+
+    //check for authorization to scannevents from the server
+
+    const checkAuthorization = async () => {
+      try {
+        
+
+        // Optionally retrieve a token from AsyncStorage
+        const token = await AsyncStorage.getItem('authToken');
+        if(!token){
+          return;
+        }
+
+        // 🔥 API call to check authorization
+        const response = await axios.get(`${config.BASE_URL}/api/events/${route.params.eventId}/check-access`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        // Example response shape: { authorized: true/false }
+        //console.log("authorized",response.data.authorized)
+        if (response.data?.authorized) {
+          //setEventId(id);
+          setAuthorized(true);
+          setEventName(response.data.eventname)
+        } 
+      } catch (error) {
+        //console.error("Authorization check failed:", error);
+        const errormessage=error.response.data.message;
+
+        if (Platform.OS === 'android') {
+  ToastAndroid.showWithGravityAndOffset(
+    errormessage,
+    ToastAndroid.LONG,
+    ToastAndroid.CENTER,
+    0,
+    50
+  );
+  navigation.goBack(); // simulate the same behavior as pressing "OK"
+} else {
+  // For iOS or fallback platforms
+   Toast.show({
+    type:'error',
+    text1:'Permission denied',
+    text2:errormessage
+   })
+}
+        // Alert.alert(
+        //   "Error",
+        //   errormessage,
+        //   [{ text: "OK", onPress: () => navigation.goBack() }]
+        // );
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkAuthorization();
+
+  }, [route.params,navigation]);
 
   // Request camera permission
   useEffect(() => {
@@ -56,6 +117,7 @@ const sendScanDataToBackend = async (scannedData) => {
     }
 
     if (String(eventId) !== String(scannedEventId)) {
+      
       Alert.alert(
         "Validation Error",
         "This QR code is not valid for the current event.",
@@ -79,7 +141,7 @@ const sendScanDataToBackend = async (scannedData) => {
 
     if (response.data.success) {
       Alert.alert(
-        "Scan Validated Successfully ✅",
+        "Scan Validated Successfully",
         `Guest: ${response.data.guestName || 'Unknown'}\nStatus: ${response.data.status || 'Valid'}`,
         [{ text: "OK", onPress: () => setScanned(false) }] // <-- reset only after user taps OK
       );
@@ -91,7 +153,7 @@ const sendScanDataToBackend = async (scannedData) => {
       );
     }
   } catch (error) {
-    console.error('Error validating scan:', error);
+    //console.error('Error validating scan:', error);
     Alert.alert(
       "Error",
       error.response?.data?.message || error.message || "Failed to validate QR code",
@@ -99,7 +161,7 @@ const sendScanDataToBackend = async (scannedData) => {
     );
   } finally {
     setProcessing(false);
-    // ❌ removed setScanned(false) here
+    
   }
 };
 
@@ -145,6 +207,20 @@ const sendScanDataToBackend = async (scannedData) => {
     );
   }
 
+  // ⏳ While checking authorization
+  if (loading) {
+    return (
+     <View style={styles.centered}>
+  <ActivityIndicator size="large" color="#007AFF" />
+  <Text style={styles.loadingText}>Checking access...</Text>
+</View>
+
+    );
+  }
+
+  // 🛑 If not authorized, don't render anything
+  if (!authorized) return null;
+
   return (
     <View style={styles.container}>
       <CameraView
@@ -163,7 +239,7 @@ const sendScanDataToBackend = async (scannedData) => {
         
         {eventId && (
           <Text style={styles.eventText}>
-            Scanning for Event ID: {eventId}
+            Scanning for Event : {eventname}
           </Text>
         )}
       </View>
@@ -261,5 +337,17 @@ const styles = StyleSheet.create({
     marginTop: 10,
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  centered: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F9FAFB', // soft neutral background
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 16,
+    color: '#333',
+    fontWeight: '500',
   },
 });

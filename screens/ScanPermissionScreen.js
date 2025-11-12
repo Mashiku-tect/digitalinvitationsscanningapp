@@ -83,11 +83,11 @@ const ScanPermissionsScreen = () => {
     try {
       setLoadingUsers(true);
       const token = await AsyncStorage.getItem('authToken');
-      const response = await axios.get(`${config.BASE_URL}/api/users`, {
+      const response = await axios.get(`${config.BASE_URL}/api/myusers`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setAllUsers(response.data || []);
-      setFilteredUsers(response.data || []);
+      setAllUsers(response.data.users || []);
+      setFilteredUsers(response.data.users || []);
     } catch (error) {
       console.error('Error fetching users:', error);
     } finally {

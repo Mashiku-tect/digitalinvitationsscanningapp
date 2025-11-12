@@ -18,8 +18,7 @@ import axios from 'axios';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
-import config from './config'; // Import config for API base URL
-//import AsyncStorage from '@react-native-async-storage/async-storage';
+import config from './config';
 
 const UserManagementScreen = () => {
   const [users, setUsers] = useState([]);
@@ -35,12 +34,12 @@ const UserManagementScreen = () => {
         throw new Error('No authentication token found');
       }
 
-      const response = await axios.get(`${config.BASE_URL}/api/users`, {
+      const response = await axios.get(`${config.BASE_URL}/api/myusers`, {
         headers: {
           Authorization: `Bearer ${token}`
         }
       });
-      setUsers(response.data);
+      setUsers(response.data.users);
     } catch (error) {
       console.error('Error fetching users:', error);
       Alert.alert('Error', 'Failed to fetch users');
@@ -73,7 +72,7 @@ const UserManagementScreen = () => {
           onPress: async () => {
             try {
               const token = await AsyncStorage.getItem('authToken');
-              const response = await axios.delete(`${config.BASE_URL}/api/users/delete/${userId}`, {
+              const response = await axios.delete(`${config.BASE_URL}/api/deleteuser/delete/${userId}`, {
                 headers: {
                   Authorization: `Bearer ${token}`
                 }
@@ -90,6 +89,13 @@ const UserManagementScreen = () => {
         }
       ]
     );
+  };
+
+  const handlePermissions = (userId, userName) => {
+    navigation.navigate('UserPermissions', { 
+      userId: userId,
+      userName: userName 
+    });
   };
 
   const filteredUsers = users.filter(user => 
@@ -153,12 +159,23 @@ const UserManagementScreen = () => {
       </View>
       
       <View style={styles.actions}>
+        {/* Permissions Button */}
+        <TouchableOpacity 
+          style={styles.actionButton}
+          onPress={() => handlePermissions(item.id, `${item.firstName} ${item.lastName}`)}
+        >
+          <Icon name="admin-panel-settings" size={20} color="#8B5CF6" />
+        </TouchableOpacity>
+        
+        {/* Edit Button */}
         <TouchableOpacity 
           style={styles.actionButton}
           onPress={() => navigation.navigate('EditUser', { userId: item.id })}
         >
           <Icon name="edit" size={20} color="#3B82F6" />
         </TouchableOpacity>
+        
+        {/* Delete Button */}
         <TouchableOpacity 
           style={styles.actionButton}
           onPress={() => handleDelete(item.id, `${item.firstName} ${item.lastName}`)}
@@ -487,7 +504,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
   },
   actions: {
-    flex: 1,
+    flex: 1.5,
     flexDirection: 'row',
     justifyContent: 'flex-end',
     gap: 8,

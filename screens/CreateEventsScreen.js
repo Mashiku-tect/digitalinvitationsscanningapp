@@ -9,7 +9,8 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
-  Modal
+  Modal,
+  ToastAndroid
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -19,21 +20,25 @@ import axios from 'axios';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import config from './config';
+import Toast from 'react-native-toast-message';
 
 const CreateEvent = () => {
   const navigation = useNavigation();
   const [formData, setFormData] = useState({
     name: '',
-    date: new Date(),
+    startDate: new Date(),
+    endDate: new Date(),
     startTime: new Date(),
     endTime: new Date(new Date().setHours(new Date().getHours() + 2)), // Default to 2 hours later
     location: '',
     description: '',
     category: 'personal',
+    package: 'Basic', // New package field
     excelFile: null,
     fileName: ''
   });
-  const [showDatePicker, setShowDatePicker] = useState(false);
+  const [showStartDatePicker, setShowStartDatePicker] = useState(false);
+  const [showEndDatePicker, setShowEndDatePicker] = useState(false);
   const [showStartTimePicker, setShowStartTimePicker] = useState(false);
   const [showEndTimePicker, setShowEndTimePicker] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -47,6 +52,13 @@ const CreateEvent = () => {
     { value: 'other', label: 'Other' }
   ];
 
+  const packages = [
+    { value: 'Basic', label: 'Basic' },
+    { value: 'Standard', label: 'Standard' },
+    { value: 'Pro', label: 'Pro' },
+    { value: 'Elite', label: 'Elite' }
+  ];
+
   const handleChange = (name, value) => {
     setFormData(prev => ({
       ...prev,
@@ -54,12 +66,32 @@ const CreateEvent = () => {
     }));
   };
 
-  const handleDateChange = (event, selectedDate) => {
-    setShowDatePicker(Platform.OS === 'ios');
+  const handleStartDateChange = (event, selectedDate) => {
+    setShowStartDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      const newStartDate = selectedDate;
+      setFormData(prev => ({
+        ...prev,
+        startDate: newStartDate
+      }));
+
+      // Auto-adjust end date if it's before start date
+      const currentEndDate = prev.endDate;
+      if (currentEndDate < newStartDate) {
+        setFormData(prev => ({
+          ...prev,
+          endDate: newStartDate
+        }));
+      }
+    }
+  };
+
+  const handleEndDateChange = (event, selectedDate) => {
+    setShowEndDatePicker(Platform.OS === 'ios');
     if (selectedDate) {
       setFormData(prev => ({
         ...prev,
-        date: selectedDate
+        endDate: selectedDate
       }));
     }
   };
@@ -73,9 +105,11 @@ const CreateEvent = () => {
         startTime: newStartTime
       }));
 
-      // Auto-adjust end time if it's before start time
+      // Auto-adjust end time only if dates are the same
       const currentEndTime = prev.endTime;
-      if (currentEndTime < newStartTime) {
+      const isSameDay = isSameDay(prev.startDate, prev.endDate);
+      
+      if (isSameDay && currentEndTime < newStartTime) {
         const newEndTime = new Date(newStartTime);
         newEndTime.setHours(newStartTime.getHours() + 2); // Add 2 hours
         setFormData(prev => ({
@@ -96,24 +130,123 @@ const CreateEvent = () => {
     }
   };
 
+  // Helper function to check if two dates are the same day
+  const isSameDay = (date1, date2) => {
+    return date1.toDateString() === date2.toDateString();
+  };
+
+  // Helper function to combine date and time
+  const combineDateAndTime = (date, time) => {
+    const combined = new Date(date);
+    combined.setHours(time.getHours());
+    combined.setMinutes(time.getMinutes());
+    combined.setSeconds(time.getSeconds());
+    return combined;
+  };
+
   const validateTimes = () => {
-    const startTime = formData.startTime;
-    const endTime = formData.endTime;
+    const startDateTime = combineDateAndTime(formData.startDate, formData.startTime);
+    const endDateTime = combineDateAndTime(formData.endDate, formData.endTime);
+    const currentDateTime = new Date();
     
-    if (endTime <= startTime) {
-      Alert.alert('Invalid Time', 'End time must be after start time');
+    // NEW VALIDATION: For events ending today, check if start time is in the past
+    if (isSameDay(formData.endDate, currentDateTime) && startDateTime <= currentDateTime) {
+      if(Platform.OS==='android'){
+            ToastAndroid.showWithGravity(
+            'Start time cannot be in the past for events ending today',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:'Start time cannot be in the past for events ending today'
+        })
+      }
       return false;
     }
     
-    // Check if event duration is reasonable (not more than 24 hours)
-    const duration = (endTime - startTime) / (1000 * 60 * 60); // duration in hours
-    if (duration > 24) {
-      Alert.alert('Long Duration', 'Event duration seems too long. Please check your times.');
+    // Check if end date is before start date
+    if (formData.endDate < formData.startDate) {
+      if(Platform.OS==='android'){
+            ToastAndroid.showWithGravity(
+            'End date cannot be before start date',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:'End date cannot be before start date'
+        })
+      }
+      return false;
+    }
+    
+    // If same day, check if end time is after start time
+    if (isSameDay(formData.startDate, formData.endDate) && formData.endTime <= formData.startTime) {
+      if(Platform.OS==='android'){
+            ToastAndroid.showWithGravity(
+            'End time must be after start time when events are on the same day',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:'End time must be after start time when events are on the same day'
+        })
+      }
+      return false;
+    }
+    
+    // Check if event duration is reasonable (not more than 30 days)
+    const durationInDays = (formData.endDate - formData.startDate) / (1000 * 60 * 60 * 24);
+    if (durationInDays > 30) {
+         if(Platform.OS==='android'){
+            ToastAndroid.showWithGravity(
+            'Event duration seems too long. Please check your dates.',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:'Event duration seems too long. Please check your dates.'
+        })
+      }
+      return false;
+    }
+    
+    // Check if the overall event makes sense (end datetime after start datetime)
+    if (endDateTime <= startDateTime) {
+       if(Platform.OS==='android'){
+            ToastAndroid.showWithGravity(
+            'Event end must be after event start',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:'Event end must be after event start'
+        })
+      }
       return false;
     }
     
     return true;
-  };
+};
 
   const pickDocument = async () => {
     try {
@@ -128,10 +261,10 @@ const CreateEvent = () => {
         copyToCacheDirectory: true
       });
 
-      console.log('Document picker result:', result);
+     // console.log('Document picker result:', result);
 
       if (result.canceled) {
-        console.log('User canceled document picker');
+       // console.log('User canceled document picker');
         return;
       }
 
@@ -143,7 +276,21 @@ const CreateEvent = () => {
         
         if (!validExtensions.includes(fileExtension)) {
           setUploadStatus('error');
-          Alert.alert('Error', 'Please upload a valid Excel file (.xlsx, .xls, or .csv)');
+         // Alert.alert('Error', 'Please upload a valid Excel file (.xlsx, .xls, or .csv)');
+           if(Platform.OS==='android'){
+            ToastAndroid.showWithGravity(
+            'Please upload a valid Excel file (.xlsx, .xls, or .csv)',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:'Please upload a valid Excel file (.xlsx, .xls, or .csv)'
+        })
+      }
           return;
         }
 
@@ -153,29 +300,85 @@ const CreateEvent = () => {
           fileName: file.name
         }));
         setUploadStatus('success');
-        Alert.alert('Success', 'Excel file uploaded successfully!');
+        //Alert.alert('Success', 'Excel file uploaded successfully!');
+         if(Platform.OS==='android'){
+            ToastAndroid.showWithGravity(
+            'Excel file uploaded successfully!',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:'Excel file uploaded successfully!'
+        })
+      }
       }
     } catch (err) {
-      console.error('Error picking document:', err);
-      Alert.alert('Error', 'Failed to pick document. Please try again.');
+     // console.error('Error picking document:', err);
+      //Alert.alert('Error', 'Failed to pick document. Please try again.');
+      if(Platform.OS==='android'){
+            ToastAndroid.showWithGravity(
+            'Failed to pick document. Please try again',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:'Failed to pick document. Please try again'
+        })
+      }
     }
   };
 
   const handleSubmit = async () => {
     // Validate required fields
-    if (!formData.name || !formData.location || !formData.description) {
-      Alert.alert('Error', 'Please fill in all required fields');
+    if (!formData.name || !formData.location || !formData.description || !formData.package) {
+      if(Platform.OS==='android'){
+            ToastAndroid.showWithGravity(
+            'Please fill in all required fields',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:'Please fill in all required fields'
+        })
+      }
+      //Alert.alert('Error', 'Please fill in all required fields');
       return;
     }
 
-    // Validate times
+    // Validate dates and times
     if (!validateTimes()) {
       return;
     }
 
     // Validate Excel file upload
     if (!formData.excelFile) {
-      Alert.alert('Error', 'Please upload an Excel file with guest data');
+     // Alert.alert('Error', 'Please upload an Excel file with guest data');
+      if(Platform.OS==='android'){
+            ToastAndroid.showWithGravity(
+            'Please upload an Excel file with guest data',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:'Please upload an Excel file with guest data'
+        })
+      }
       return;
     }
 
@@ -185,7 +388,7 @@ const CreateEvent = () => {
       const token = await AsyncStorage.getItem("authToken");
       
       if (!token) {
-        Alert.alert('Error', 'Authentication token not found. Please login again.');
+        //Alert.alert('Error', 'Authentication token not found. Please login again.');
         setLoading(false);
         return;
       }
@@ -193,12 +396,14 @@ const CreateEvent = () => {
       // Create FormData
       const data = new FormData();
       data.append("name", formData.name);
-      data.append("date", formData.date.toISOString().split('T')[0]);
+      data.append("date", formData.startDate.toISOString().split('T')[0]);
+      data.append("endDate", formData.endDate.toISOString().split('T')[0]);
       data.append("time", formData.startTime.toTimeString().split(' ')[0]);
       data.append("endTime", formData.endTime.toTimeString().split(' ')[0]);
       data.append("location", formData.location);
       data.append("description", formData.description);
       data.append("category", formData.category);
+      data.append("package", formData.package); // Add package to form data
       
       // For file upload in React Native - use the correct file structure
       data.append("excelFile", {
@@ -207,7 +412,7 @@ const CreateEvent = () => {
         name: formData.excelFile.name || 'guest_list.xlsx'
       });
 
-      console.log('Sending request with form data');
+      //console.log('Sending request with form data');
 
       const res = await axios.post(
         `${config.BASE_URL}/api/events`,
@@ -221,14 +426,34 @@ const CreateEvent = () => {
         }
       );
 
-      Alert.alert('Success', res.data.message || 'Event created successfully!');
+      //Alert.alert('Success', res.data.message || 'Event created successfully!');
+        if(Platform.OS==='android'){
+            ToastAndroid.showWithGravity(
+            'Event created successfully!',
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'success',
+          text1:'Success',
+          text2:'Event created successfully!'
+        })
+      }
+
+      //clear input fields on success
+      formData.name='';
+      formData.location='';
+      formData.description='';
+      formData.fileName=null;
       
       // Wait a moment before redirecting
       setTimeout(() => {
         navigation.navigate("Events");
       }, 1500);
     } catch (err) {
-      console.error('Error creating event:', err);
+      //console.error('Error creating event:', err);
       let errorMessage = "Error creating event";
       
       if (err.response) {
@@ -239,7 +464,21 @@ const CreateEvent = () => {
         errorMessage = err.message || "Unknown error occurred";
       }
       
-      Alert.alert('Error', errorMessage);
+      //Alert.alert('Error', errorMessage);
+       if(Platform.OS==='android'){
+            ToastAndroid.showWithGravity(
+            errorMessage,
+            ToastAndroid.LONG,
+            ToastAndroid.CENTER
+          );
+      }
+      else{
+        Toast.show({
+          type:'error',
+          text1:'Error',
+          text2:errorMessage
+        })
+      }
     } finally {
       setLoading(false);
     }
@@ -254,18 +493,32 @@ const CreateEvent = () => {
   };
 
   const getEventDuration = () => {
-    const start = formData.startTime;
-    const end = formData.endTime;
-    const duration = (end - start) / (1000 * 60 * 60); // hours
+    const startDateTime = combineDateAndTime(formData.startDate, formData.startTime);
+    const endDateTime = combineDateAndTime(formData.endDate, formData.endTime);
+    const durationInHours = (endDateTime - startDateTime) / (1000 * 60 * 60);
+    const durationInDays = (formData.endDate - formData.startDate) / (1000 * 60 * 60 * 24);
     
-    if (duration < 1) {
-      const minutes = Math.round(duration * 60);
+    if (durationInDays >= 1) {
+      const days = Math.floor(durationInDays);
+      const hours = Math.round((durationInDays - days) * 24);
+      
+      if (hours > 0) {
+        return `${days} day${days > 1 ? 's' : ''} ${hours} hour${hours > 1 ? 's' : ''}`;
+      } else {
+        return `${days} day${days > 1 ? 's' : ''}`;
+      }
+    } else if (durationInHours < 1) {
+      const minutes = Math.round(durationInHours * 60);
       return `${minutes} minutes`;
-    } else if (duration === 1) {
+    } else if (durationInHours === 1) {
       return '1 hour';
     } else {
-      return `${Math.round(duration * 10) / 10} hours`;
+      return `${Math.round(durationInHours * 10) / 10} hours`;
     }
+  };
+
+  const isMultiDayEvent = () => {
+    return !isSameDay(formData.startDate, formData.endDate);
   };
 
   return (
@@ -304,24 +557,45 @@ const CreateEvent = () => {
           />
         </View>
 
-        {/* Date */}
-        <View style={styles.inputGroup}>
-          <Text style={styles.label}>Date *</Text>
-          <TouchableOpacity 
-            style={styles.input}
-            onPress={() => setShowDatePicker(true)}
-          >
-            <Text>{formatDate(formData.date)}</Text>
-          </TouchableOpacity>
-          {showDatePicker && (
-            <DateTimePicker
-              value={formData.date}
-              mode="date"
-              display="default"
-              onChange={handleDateChange}
-              minimumDate={new Date()}
-            />
-          )}
+        {/* Start and End Date */}
+        <View style={styles.row}>
+          <View style={[styles.inputGroup, { flex: 1, marginRight: 8 }]}>
+            <Text style={styles.label}>Start Date *</Text>
+            <TouchableOpacity 
+              style={styles.input}
+              onPress={() => setShowStartDatePicker(true)}
+            >
+              <Text>{formatDate(formData.startDate)}</Text>
+            </TouchableOpacity>
+            {showStartDatePicker && (
+              <DateTimePicker
+                value={formData.startDate}
+                mode="date"
+                display="default"
+                onChange={handleStartDateChange}
+                minimumDate={new Date()}
+              />
+            )}
+          </View>
+
+          <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+            <Text style={styles.label}>End Date *</Text>
+            <TouchableOpacity 
+              style={styles.input}
+              onPress={() => setShowEndDatePicker(true)}
+            >
+              <Text>{formatDate(formData.endDate)}</Text>
+            </TouchableOpacity>
+            {showEndDatePicker && (
+              <DateTimePicker
+                value={formData.endDate}
+                mode="date"
+                display="default"
+                onChange={handleEndDateChange}
+                minimumDate={formData.startDate}
+              />
+            )}
+          </View>
         </View>
 
         {/* Start and End Time */}
@@ -365,7 +639,9 @@ const CreateEvent = () => {
 
         {/* Duration Display */}
         <View style={styles.durationContainer}>
-          <Text style={styles.durationLabel}>Event Duration:</Text>
+          <Text style={styles.durationLabel}>
+            {isMultiDayEvent() ? 'Multi-day Event' : 'Single-day Event'}
+          </Text>
           <Text style={styles.durationValue}>{getEventDuration()}</Text>
         </View>
 
@@ -391,6 +667,22 @@ const CreateEvent = () => {
             >
               {categories.map(category => (
                 <Picker.Item key={category.value} label={category.label} value={category.value} />
+              ))}
+            </Picker>
+          </View>
+        </View>
+
+        {/* Package Selection */}
+        <View style={styles.inputGroup}>
+          <Text style={styles.label}>Package *</Text>
+          <View style={styles.pickerContainer}>
+            <Picker
+              selectedValue={formData.package}
+              onValueChange={(value) => handleChange('package', value)}
+              style={styles.picker}
+            >
+              {packages.map(pkg => (
+                <Picker.Item key={pkg.value} label={pkg.label} value={pkg.value} />
               ))}
             </Picker>
           </View>
@@ -461,11 +753,12 @@ const CreateEvent = () => {
       </View>
 
       {/* Help Text */}
-      <View style={styles.helpText}>
+      {/* <View style={styles.helpText}>
         <Text style={styles.helpTextLine}>All fields marked with * are required</Text>
         <Text style={styles.helpTextLine}>Your Excel file should include guest names, emails, and any other relevant information</Text>
-        <Text style={styles.helpTextLine}>End time must be after start time</Text>
-      </View>
+        <Text style={styles.helpTextLine}>End date cannot be before start date</Text>
+        <Text style={styles.helpTextLine}>When events are on the same day, end time must be after start time</Text>
+      </View> */}
     </ScrollView>
   );
 };
